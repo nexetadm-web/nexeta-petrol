@@ -5,11 +5,10 @@ import { SESSION_COOKIE_NAME, SUPER_ADMIN_COOKIE_NAME, verifyToken, SessionData,
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 1. Static Assets & Next.js Internals
+  // 1. Static Assets, Next.js Internals & All API Endpoints
   if (
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/api/init") ||
-    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/") ||
     pathname.includes(".") ||
     pathname === "/favicon.ico" ||
     pathname === "/icon.svg" ||

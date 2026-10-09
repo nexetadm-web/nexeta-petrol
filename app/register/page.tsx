@@ -44,13 +44,39 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
+      const payload = {
+        pump_name: formData.pumpName,
+        pumpName: formData.pumpName,
+        owner_name: formData.ownerName,
+        ownerName: formData.ownerName,
+        phone: formData.phone,
+        email: formData.email,
+        password: formData.password,
+        city: formData.city,
+        cnic: formData.cnic,
+      };
+
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get("content-type") || "";
+      let data: any = {};
+
+      if (contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        console.error("Non-JSON response from register API:", res.status, text);
+        throw new Error(
+          res.status === 404
+            ? "سرور پر رجسٹریشن کا راستہ نہیں ملا (404 Not Found)"
+            : `سرور کی طرف سے خرابی موصول ہوئی (${res.status})۔ دوبارہ کوشش کریں۔`
+        );
+      }
+
       if (!res.ok || !data.success) {
         throw new Error(data.error || "رجسٹریشن میں مسئلہ پیش آیا۔ دوبارہ کوشش کریں۔");
       }
@@ -58,7 +84,7 @@ export default function RegisterPage() {
       // Successful registration & session created
       router.push("/dashboard");
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || "رجسٹریشن میں مسئلہ پیش آیا۔");
     } finally {
       setLoading(false);
     }

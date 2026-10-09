@@ -35,7 +35,16 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get("content-type") || "";
+      let data: any = {};
+      if (contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        console.error("Non-JSON response from login API:", res.status, text);
+        throw new Error(`سرور کی طرف سے خرابی (${res.status})۔ دوبارہ کوشش کریں۔`);
+      }
+
       if (!res.ok || !data.success) {
         throw new Error(data.error || "لاگ ان میں مسئلہ پیش آیا۔ برائے مہربانی ای میل اور پاس ورڈ چیک کریں۔");
       }
@@ -63,7 +72,16 @@ export default function LoginPage() {
         body: JSON.stringify({ isDemo: true }),
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get("content-type") || "";
+      let data: any = {};
+      if (contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        console.error("Non-JSON response from demo login:", res.status, text);
+        throw new Error(`سرور کی طرف سے خرابی (${res.status})۔ دوبارہ کوشش کریں۔`);
+      }
+
       if (!res.ok || !data.success) {
         throw new Error(data.error || "ڈیمو لاگ ان میں مسئلہ پیش آیا۔");
       }
