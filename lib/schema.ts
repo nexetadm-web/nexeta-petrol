@@ -48,16 +48,20 @@ export const superAdmins = sqliteTable("super_admins", {
 export const tanks = sqliteTable("tanks", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
+  tank_no: integer("tank_no").default(1), // 1, 2, 3...
   name: text("name").notNull(), // e.g. "Tank 1", "Tank 2"
   tank_name: text("tank_name"), // alias for name
-  fuel_type: text("fuel_type").notNull(), // "Petrol" | "Diesel" | "HiOctane" | "Super"
+  fuel_type: text("fuel_type").notNull(), // "Petrol" | "Diesel" | "HiOctane" | "Super" | "HOBC"
   product: text("product"), // alias for fuel_type
   capacity: real("capacity").notNull().default(25000), // in litres
   capacity_liters: real("capacity_liters"), // alias for capacity
-  tank_height_mm: real("tank_height_mm").default(2500), // e.g. 2500 mm
+  height_mm: integer("height_mm").default(2500), // Tank height mm (e.g. 2500)
+  tank_height_mm: real("tank_height_mm").default(2500), // backwards compatibility
   current_dip_mm: real("current_dip_mm").default(0), // mm
   current_stock: real("current_stock").notNull().default(0), // in litres
   current_stock_liters: real("current_stock_liters").default(0), // in litres
+  dip_chart_image_url: text("dip_chart_image_url"), // Image of calibration sheet
+  has_dip_chart: integer("has_dip_chart").default(0), // 1 = true, 0 = false
   created_at: text("created_at"),
 });
 
@@ -187,6 +191,22 @@ export const stockLogs = sqliteTable("stock_logs", {
   received_liters: real("received_liters").notNull().default(0), // Inward tanker litres
   sale_liters: real("sale_liters").notNull().default(0), // Outward sale litres
   difference_liters: real("difference_liters").notNull().default(0), // Gain (+) / Loss (-)
+  created_by: text("created_by"),
+  created_at: text("created_at"),
+});
+
+// 11c. Dip Variations Table (Low/High Dip variation reasons & audit trail)
+export const dipVariations = sqliteTable("dip_variations", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  tank_id: integer("tank_id").references(() => tanks.id, { onDelete: "cascade" }).notNull(),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
+  previous_dip_mm: real("previous_dip_mm").notNull().default(0),
+  current_dip_mm: real("current_dip_mm").notNull(),
+  difference_liters: real("difference_liters").notNull(),
+  variation_type: text("variation_type").notNull(), // 'low' | 'high' | 'normal'
+  reason_type: text("reason_type").notNull(), // 'فروخت', 'لیکج', 'چوری', 'بخارات', 'میٹر ایرر', 'نئی وصولی', 'واپسی', 'درجہ حرارت', 'دیگر'
+  reason_note: text("reason_note"),
+  date: text("date").notNull(), // DD-MM-YYYY
   created_by: text("created_by"),
   created_at: text("created_at"),
 });

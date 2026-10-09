@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession, isSubscriptionExpired } from "@/lib/auth";
+import { getSession, isSubscriptionExpired, isSuperAdminEmail } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { pumps } from "@/lib/schema";
 import { eq } from "drizzle-orm";
@@ -23,10 +23,14 @@ export async function GET(request: Request) {
       session.pumpName = p.pump_name;
     }
 
+    const isSuper = (session.role as string) === "super_admin" || isSuperAdminEmail(session.email);
+    (session as any).isSuperAdmin = isSuper;
+
     return NextResponse.json({
       success: true,
       session,
       isExpired: session.subscriptionStatus === "expired",
+      isSuperAdmin: isSuper,
     });
   } catch (error: any) {
     return NextResponse.json({ success: false, session: null }, { status: 500 });

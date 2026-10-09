@@ -17,7 +17,9 @@ import {
   TrendingDown,
   Printer,
   History,
-  FileSpreadsheet
+  FileSpreadsheet,
+  AlertOctagon,
+  Sparkles
 } from "lucide-react";
 import { getTodayDatePK, formatLitres, formatPKDate } from "@/lib/formatters";
 import { getStockFromDip, DipChartEntry } from "@/lib/stock";
@@ -35,6 +37,7 @@ interface TankItem {
   current_dip_mm: number;
   current_stock: number;
   current_stock_liters: number;
+  has_dip_chart?: boolean;
 }
 
 interface StockLogItem {
@@ -51,6 +54,18 @@ interface StockLogItem {
   fuel_type?: string;
   created_at?: string;
 }
+
+const REASON_OPTIONS = [
+  "فروخت",
+  "لیکج",
+  "چوری",
+  "بخارات",
+  "میٹر ایرر",
+  "نئی وصولی",
+  "واپسی",
+  "درجہ حرارت",
+  "دیگر",
+];
 
 export default function DailyDipStockPage() {
   const params = useParams();
@@ -72,6 +87,10 @@ export default function DailyDipStockPage() {
   const [saleInput, setSaleInput] = useState<string>("0");
   const [dateStr, setDateStr] = useState<string>("");
   const [createdBy, setCreatedBy] = useState<string>("Manager / کیشیئر");
+
+  // Reason State for Low / High Variation
+  const [reasonType, setReasonType] = useState<string>("");
+  const [reasonNote, setReasonNote] = useState<string>("");
 
   const loadData = async () => {
     if (!pumpId) return;
@@ -144,9 +163,18 @@ export default function DailyDipStockPage() {
 
   // Live difference / variance
   const liveDifference = useMemo(() => {
-    if (!liveCalculatedStock) return 0;
+    if (!dipMmInput || parseFloat(dipMmInput) <= 0) return 0;
     return Math.round((liveCalculatedStock - expectedStock) * 100) / 100;
-  }, [liveCalculatedStock, expectedStock]);
+  }, [liveCalculatedStock, expectedStock, dipMmInput]);
+
+  // Auto-set default reason when difference changes
+  useEffect(() => {
+    if (liveDifference < 0 && !reasonType) {
+      setReasonType("بخارات");
+    } else if (liveDifference > 0 && !reasonType) {
+      setReasonType("نئی وصولی");
+    }
+  }, [liveDifference]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -155,12 +183,20 @@ export default function DailyDipStockPage() {
 
     const dipMm = parseFloat(dipMmInput);
     if (isNaN(dipMm) || dipMm <= 0) {
-      setFeedback({ type: "error", msg: "براہ کرم درست ڈِپ پیمائش درج کریں (Valid dip mm required)" });
+      setFeedback({ type: "error", msg: "براہ کرم درست ڈِپ پیمائش (mm) درج کریں" });
+      setSubmitting(false);
+      return;
+    }
+
+    if (liveDifference !== 0 && !reasonType) {
+      setFeedback({ type: "error", msg: "ڈِپ میں فرق پایا گیا ہے! براہ کرم فرق کی وجہ (Reason) منتخب کریں۔" });
       setSubmitting(false);
       return;
     }
 
     try {
+      const varType = liveDifference < 0 ? "low" : liveDifference > 0 ? "high" : "normal";
+
       const res = await fetch(`/api/pumps/${pumpId}/stock`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -170,6 +206,10 @@ export default function DailyDipStockPage() {
           dip_mm: dipMm,
           received_liters: parseFloat(receivedInput) || 0,
           sale_liters: parseFloat(saleInput) || 0,
+          difference_liters: liveDifference,
+          variation_type: varType,
+          reason_type: reasonType || "دیگر",
+          reason_note: reasonNote,
           created_by: createdBy,
         }),
       });
@@ -181,12 +221,13 @@ export default function DailyDipStockPage() {
 
       setFeedback({
         type: "success",
-        msg: `ڈِپ انٹری کامیابی سے محفوظ ہو گئی! نیا اسٹاک: ${formatLitres(data.calculated_stock_liters)}`,
+        msg: `ڈِپ انٹری اور ویرینشن لاگ کامیابی سے محفوظ ہو گیا! نیا اسٹاک: ${formatLitres(data.calculated_stock_liters)} L`,
       });
 
       setDipMmInput("");
       setReceivedInput("0");
       setSaleInput("0");
+      setReasonNote("");
       await loadData();
     } catch (err: any) {
       setFeedback({ type: "error", msg: err.message || "Failed to save stock log" });
@@ -203,26 +244,34 @@ export default function DailyDipStockPage() {
           <div className="flex items-center gap-2 text-xs text-indigo-600 font-bold uppercase tracking-wider mb-1">
             <Link href={`/dashboard/pump/${pumpId}/tanks`} className="hover:underline flex items-center gap-1">
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Tanks List</span>
+              <span>ٹینکس لسٹ</span>
             </Link>
             <span>/</span>
-            <span>Daily Dip Stock Entry</span>
+            <span>روزانہ ڈِپ انٹری و اسٹاک کا حساب</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-            روزانہ ٹینک ڈِپ انٹری و اسٹاک کا حساب (Daily Dip & Stock Log)
+            روزانہ ٹینک ڈِپ انٹری و ویرینشن ٹریکر
           </h1>
           <p className="text-sm text-slate-500 font-medium mt-1">
-            پیمائش شدہ ڈِپ (mm) درج کریں • کیلیبریشن چارٹ سے آٹومیٹک لیٹرز کا حساب • بک اسٹاک بمقابلہ فزیکل ویریئنس
+            پیمائش صرف ملی میٹر (mm) میں ہے۔ کیلیبریشن چارٹ سے خودکار لیٹرز کا حساب اور کم/زیادہ ڈِپ پر وجہ کا اندراج۔
           </p>
         </div>
 
         <div className="flex items-center gap-2">
+          <Link
+            href={`/dashboard/pump/${pumpId}/variations`}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 font-bold text-xs shadow-xs transition-colors"
+          >
+            <History className="w-4 h-4 text-indigo-600" />
+            <span>ویرینشن ہسٹری لاگز</span>
+          </Link>
+
           <button
             onClick={() => window.print()}
             className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs shadow-xs transition-colors"
           >
             <Printer className="w-4 h-4 text-slate-600" />
-            <span>پرنٹ لاگ (Print)</span>
+            <span>پرنٹ لاگ</span>
           </button>
         </div>
       </div>
@@ -256,40 +305,40 @@ export default function DailyDipStockPage() {
               </div>
               <div>
                 <h3 className="font-extrabold text-base text-slate-900">
-                  آج کی ڈِپ پیمائش درج کریں (Enter Measured Dip)
+                  مرحلہ وار ڈِپ انٹری درج کریں (Step-by-Step Dip Entry)
                 </h3>
                 <span className="text-xs text-slate-400">
-                  شفت کے اختتام پر راڈ یا اسکیل سے لی گئی ڈِپ
+                  تمام پیمائشیں صرف اور صرف ملی میٹر (mm) میں ہیں
                 </span>
               </div>
             </div>
 
             {selectedTank && (
               <Link
-                href={`/dashboard/pump/${pumpId}/tanks/${selectedTank.id}/dip-chart`}
+                href={`/dashboard/pump/${pumpId}/tanks/dip-charts?tank=${selectedTank.id}`}
                 className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-bold hover:underline"
               >
                 <Sliders className="w-3.5 h-3.5" />
-                <span>View Dip Chart</span>
+                <span>اس ٹینک کا ڈِپ چارٹ</span>
               </Link>
             )}
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Select Tank */}
+              {/* Step 1: Select Tank */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
-                  ٹینک منتخب کریں (Select Tank) *
+                <label className="block text-xs font-black uppercase tracking-wider text-slate-700 mb-1">
+                  1. ٹینک منتخب کریں (Step 1: Select Tank) *
                 </label>
                 <select
                   value={selectedTankId}
                   onChange={(e) => setSelectedTankId(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                  className="w-full px-3.5 py-3 rounded-xl border-2 border-indigo-200 text-slate-900 text-sm font-bold focus:outline-none focus:border-indigo-600 bg-white"
                 >
                   {tanks.map((t) => (
                     <option key={t.id} value={t.id}>
-                      {t.tank_name || t.name} ({t.product}) - Capacity: {t.capacity_liters}L
+                      {t.tank_name || t.name} ({t.product || t.fuel_type}) - گنجائش: {formatLitres(t.capacity_liters)}L
                     </option>
                   ))}
                 </select>
@@ -307,18 +356,18 @@ export default function DailyDipStockPage() {
                     required
                     value={dateStr}
                     onChange={(e) => setDateStr(e.target.value)}
-                    className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-slate-300 text-slate-900 text-sm font-semibold font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full pl-10 pr-3 py-3 rounded-xl border border-slate-300 text-slate-900 text-sm font-semibold font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
               </div>
             </div>
 
-            {/* Dip Measurement (mm) */}
-            <div className="p-4 rounded-2xl bg-indigo-50/50 border border-indigo-100">
+            {/* Step 2: Dip Measurement (mm strictly) */}
+            <div className="p-4 rounded-2xl bg-indigo-50/60 border-2 border-indigo-200">
               <label className="block text-xs font-black uppercase tracking-wider text-indigo-950 mb-1.5 flex items-center justify-between">
-                <span>پیمائش شدہ ڈِپ (Measured Dip in MM) *</span>
-                <span className="text-[11px] text-indigo-600 font-normal">
-                  ٹینک کی کل اونچائی: {selectedTank?.tank_height_mm || 2500} mm
+                <span>2. موجودہ ڈِپ پیمائش (Step 2: Enter Dip in mm) *</span>
+                <span className="text-[11px] text-indigo-600 font-bold">
+                  ٹینک اونچائی: {selectedTank?.tank_height_mm || 2500} mm
                 </span>
               </label>
               <div className="relative">
@@ -328,12 +377,12 @@ export default function DailyDipStockPage() {
                   min="0"
                   max={selectedTank?.tank_height_mm || 5000}
                   required
-                  placeholder="مثال: 850 (850 ملی میٹر)"
+                  placeholder="مثال: 850 (صرف ملی میٹر درج کریں)"
                   value={dipMmInput}
                   onChange={(e) => setDipMmInput(e.target.value)}
-                  className="w-full pl-4 pr-16 py-3 rounded-xl border border-indigo-300 text-slate-900 text-lg font-black font-mono focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white"
+                  className="w-full pl-4 pr-20 py-3.5 rounded-xl border border-indigo-300 text-slate-900 text-xl font-black font-mono focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white"
                 />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm">
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 font-black text-indigo-700 text-sm bg-indigo-100 px-2.5 py-1 rounded-md">
                   mm
                 </span>
               </div>
@@ -382,10 +431,81 @@ export default function DailyDipStockPage() {
               </div>
             </div>
 
+            {/* STEP 3 VARIATION BOXES WITH REASON */}
+            {dipMmInput && parseFloat(dipMmInput) > 0 && liveDifference !== 0 && (
+              <div
+                className={`p-5 rounded-2xl border-2 transition-all space-y-3 ${
+                  liveDifference < 0
+                    ? "bg-rose-50 border-rose-400 text-rose-950"
+                    : "bg-emerald-50 border-emerald-400 text-emerald-950"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {liveDifference < 0 ? (
+                      <AlertOctagon className="w-6 h-6 text-rose-600 flex-shrink-0" />
+                    ) : (
+                      <CheckCircle2 className="w-6 h-6 text-emerald-600 flex-shrink-0" />
+                    )}
+                    <div>
+                      <h4 className="font-black text-base">
+                        {liveDifference < 0
+                          ? `⚠️ ڈِپ کم: ${liveDifference} L`
+                          : `✅ ڈِپ زیادہ: +${liveDifference} L`}
+                      </h4>
+                      <p className="text-xs font-medium opacity-80">
+                        {liveDifference < 0
+                          ? "رجسٹرڈ اسٹاک کے مقابلے میں فزیکل ڈِپ کم ہے۔ فرق کی وجہ منتخب کرنا لازمی ہے۔"
+                          : "رجسٹرڈ اسٹاک کے مقابلے میں فزیکل ڈِپ زیادہ ہے۔ فرق کی وجہ منتخب کرنا لازمی ہے۔"}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-mono font-black px-2.5 py-1 rounded-full bg-white border shadow-2xs">
+                    ویریئنس: {liveDifference} L
+                  </span>
+                </div>
+
+                {/* Reason Dropdown & Note */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-black/10">
+                  <div>
+                    <label className="block text-xs font-black mb-1">
+                      فرق کی وجہ (Reason Type) *
+                    </label>
+                    <select
+                      value={reasonType}
+                      onChange={(e) => setReasonType(e.target.value)}
+                      required
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-900 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">-- وجہ منتخب کریں --</option>
+                      {REASON_OPTIONS.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black mb-1">
+                      تفصیل / نوٹ (Reason Note)
+                    </label>
+                    <input
+                      type="text"
+                      value={reasonNote}
+                      onChange={(e) => setReasonNote(e.target.value)}
+                      placeholder="کوئی وضاحتی نوٹ درج کریں..."
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Created By */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
-                ڈِپ چیک کرنے والا اہلکار (Created By)
+                اہلکار کا نام (Created By)
               </label>
               <input
                 type="text"
@@ -400,10 +520,10 @@ export default function DailyDipStockPage() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 text-white font-bold text-sm shadow-md transition-all disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 text-white font-black text-sm shadow-md transition-all disabled:opacity-50 hover:shadow-lg transform active:scale-95"
               >
-                <Save className="w-4 h-4" />
-                <span>{submitting ? "محفوظ ہو رہا ہے..." : "ڈِپ انٹری لاگ محفوظ کریں (Save Stock Log)"}</span>
+                <Save className="w-5 h-5" />
+                <span>{submitting ? "محفوظ ہو رہا ہے..." : "ڈِپ انٹری و ویرینشن محفوظ کریں (Save Stock & Variation)"}</span>
               </button>
             </div>
           </form>
@@ -421,7 +541,7 @@ export default function DailyDipStockPage() {
             </div>
 
             <div className="text-3xl sm:text-4xl font-black font-mono tracking-tight text-white mb-2">
-              {liveCalculatedStock > 0 ? formatLitres(liveCalculatedStock) : "0 L"}
+              {liveCalculatedStock > 0 ? `${formatLitres(liveCalculatedStock)} L` : "0 L"}
             </div>
 
             <div className="text-xs text-indigo-300 font-medium">
@@ -444,7 +564,7 @@ export default function DailyDipStockPage() {
                     %
                   </span>
                 </div>
-                <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+                <div className="w-full h-2.5 rounded-full bg-white/10 overflow-hidden">
                   <div
                     className="h-full bg-emerald-400 rounded-full transition-all duration-300"
                     style={{
@@ -474,14 +594,14 @@ export default function DailyDipStockPage() {
               <div className="flex items-center justify-between">
                 <span className="text-slate-600 font-medium">پچھلا اسٹاک (Previous):</span>
                 <span className="font-mono font-bold text-slate-900">
-                  {formatLitres(selectedTank?.current_stock_liters || selectedTank?.current_stock || 0)}
+                  {formatLitres(selectedTank?.current_stock_liters || selectedTank?.current_stock || 0)} L
                 </span>
               </div>
 
               <div className="flex items-center justify-between">
                 <span className="text-slate-600 font-medium">توقع شدہ رجسٹر اسٹاک:</span>
                 <span className="font-mono font-bold text-slate-900">
-                  {formatLitres(expectedStock)}
+                  {formatLitres(expectedStock)} L
                 </span>
               </div>
 
@@ -516,66 +636,68 @@ export default function DailyDipStockPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-right text-xs">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 uppercase font-black tracking-wider text-[11px]">
               <tr>
-                <th className="py-2.5 px-4">تاریخ (Date)</th>
-                <th className="py-2.5 px-4">ٹینک (Tank)</th>
-                <th className="py-2.5 px-4">ڈِپ پیمائش (Dip mm)</th>
-                <th className="py-2.5 px-4">حقیقی اسٹاک (Physical L)</th>
-                <th className="py-2.5 px-4">وصولی (Rec L)</th>
-                <th className="py-2.5 px-4">سیل (Sale L)</th>
-                <th className="py-2.5 px-4">ویریئنس (Gain/Loss)</th>
-                <th className="py-2.5 px-4">اہلکار</th>
+                <th className="py-3 px-3 text-center">#</th>
+                <th className="py-3 px-3 text-right">تاریخ</th>
+                <th className="py-3 px-3 text-right">ٹینک</th>
+                <th className="py-3 px-3 text-center">ڈِپ (mm)</th>
+                <th className="py-3 px-3 text-right">کیلکولیٹڈ لیٹرز</th>
+                <th className="py-3 px-3 text-right">انورڈ (وصولی)</th>
+                <th className="py-3 px-3 text-right">آؤٹ ورڈ (سیل)</th>
+                <th className="py-3 px-3 text-center">ویریئنس (+/-)</th>
+                <th className="py-3 px-3 text-right">درج کنندہ</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-800">
+            <tbody className="divide-y divide-slate-100">
               {logs.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-400">
-                    کوئی ریکارڈ موجود نہیں۔ اوپر فارم سے پہلی ڈِپ انٹری درج کریں۔
+                  <td colSpan={9} className="py-8 text-center text-slate-400 font-medium">
+                    ابھی تک کوئی ڈِپ لاگ موجود نہیں ہے
                   </td>
                 </tr>
               ) : (
-                logs.map((log) => {
-                  const isGain = log.difference_liters >= 0;
-                  return (
-                    <tr key={log.id} className="hover:bg-indigo-50/20 transition-colors">
-                      <td className="py-2.5 px-4 font-mono font-bold text-slate-900 whitespace-nowrap">
-                        {log.date}
-                      </td>
-                      <td className="py-2.5 px-4 font-bold text-slate-900 whitespace-nowrap">
-                        {log.tank_name} <span className="text-[10px] text-slate-400">({log.fuel_type})</span>
-                      </td>
-                      <td className="py-2.5 px-4 font-mono font-bold text-slate-700 whitespace-nowrap">
-                        {log.dip_mm} mm
-                      </td>
-                      <td className="py-2.5 px-4 font-mono font-black text-indigo-700 whitespace-nowrap">
-                        {formatLitres(log.calculated_stock_liters)}
-                      </td>
-                      <td className="py-2.5 px-4 font-mono text-emerald-600 whitespace-nowrap">
-                        {log.received_liters > 0 ? `+${log.received_liters} L` : "—"}
-                      </td>
-                      <td className="py-2.5 px-4 font-mono text-slate-600 whitespace-nowrap">
-                        {log.sale_liters > 0 ? `${log.sale_liters} L` : "—"}
-                      </td>
-                      <td className="py-2.5 px-4 whitespace-nowrap">
-                        <span
-                          className={`font-mono font-bold px-2 py-0.5 rounded-full text-[11px] ${
-                            isGain
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              : "bg-rose-50 text-rose-700 border border-rose-200"
-                          }`}
-                        >
-                          {log.difference_liters > 0 ? `+${log.difference_liters}` : log.difference_liters} L
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-4 text-slate-500 whitespace-nowrap">
-                        {log.created_by || "—"}
-                      </td>
-                    </tr>
-                  );
-                })
+                logs.map((log, idx) => (
+                  <tr key={log.id} className="hover:bg-slate-50">
+                    <td className="py-3 px-3 text-center font-bold text-slate-400">
+                      {idx + 1}
+                    </td>
+                    <td className="py-3 px-3 font-semibold text-slate-800">
+                      {formatPKDate(log.date)}
+                    </td>
+                    <td className="py-3 px-3">
+                      <span className="font-bold text-slate-900 block">{log.tank_name}</span>
+                      <span className="text-[10px] text-slate-400">{log.fuel_type}</span>
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono font-bold text-indigo-700 bg-indigo-50/50 rounded-lg">
+                      {log.dip_mm} mm
+                    </td>
+                    <td className="py-3 px-3 font-mono font-bold text-slate-900">
+                      {formatLitres(log.calculated_stock_liters)} L
+                    </td>
+                    <td className="py-3 px-3 font-mono text-emerald-600 font-semibold">
+                      +{formatLitres(log.received_liters)} L
+                    </td>
+                    <td className="py-3 px-3 font-mono text-rose-600 font-semibold">
+                      -{formatLitres(log.sale_liters)} L
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono font-black">
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[11px] ${
+                          log.difference_liters >= 0
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-rose-100 text-rose-800"
+                        }`}
+                      >
+                        {log.difference_liters > 0 ? `+${log.difference_liters}` : log.difference_liters} L
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-slate-500 font-medium">
+                      {log.created_by || "System"}
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>

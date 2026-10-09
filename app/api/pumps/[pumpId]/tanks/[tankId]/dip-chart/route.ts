@@ -134,15 +134,18 @@ export async function POST(
         uniqueRows,
         tank.capacity_liters || tank.capacity
       );
-
-      await db
-        .update(tanks)
-        .set({
-          current_stock: updatedStock,
-          current_stock_liters: updatedStock,
-        })
-        .where(eq(tanks.id, tankId));
     }
+
+    // Update tank has_dip_chart flag and optional image
+    await db
+      .update(tanks)
+      .set({
+        has_dip_chart: 1,
+        dip_chart_image_url: body.image_url || tank.dip_chart_image_url,
+        current_stock: updatedStock,
+        current_stock_liters: updatedStock,
+      })
+      .where(eq(tanks.id, tankId));
 
     return NextResponse.json({
       success: true,

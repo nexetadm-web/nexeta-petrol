@@ -46,16 +46,20 @@ export interface AuthSession {
 export interface Tank {
   id: number;
   pump_id?: number;
+  tank_no?: number;
   name: string;
   tank_name?: string;
   fuel_type: FuelType | string;
   product?: string;
   capacity: number;
   capacity_liters?: number;
+  height_mm?: number;
   tank_height_mm?: number;
   current_dip_mm?: number;
   current_stock: number;
   current_stock_liters?: number;
+  dip_chart_image_url?: string | null;
+  has_dip_chart?: boolean | number;
   created_at?: string;
 }
 
@@ -186,6 +190,23 @@ export interface StockLog {
   created_at?: string | null;
   tank_name?: string;
   fuel_type?: string;
+}
+
+export interface DipVariation {
+  id: number;
+  tank_id: number;
+  pump_id?: number;
+  previous_dip_mm: number;
+  current_dip_mm: number;
+  difference_liters: number;
+  variation_type: "low" | "high" | "normal" | string;
+  reason_type: string;
+  reason_note?: string | null;
+  date: string;
+  created_by?: string | null;
+  created_at?: string | null;
+  tank_name?: string;
+  product?: string;
 }
 
 export interface TankKhata {

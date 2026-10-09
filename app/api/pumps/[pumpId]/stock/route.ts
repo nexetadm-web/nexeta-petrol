@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { tanks, dipCharts, stockLogs, tankKhata } from "@/lib/schema";
+import { tanks, dipCharts, stockLogs, tankKhata, dipVariations } from "@/lib/schema";
 import { eq, and, desc, asc } from "drizzle-orm";
 import { getStockFromDip, DipChartEntry } from "@/lib/stock";
 import { getTodayDatePK } from "@/lib/formatters";
@@ -168,6 +168,29 @@ export async function POST(
       });
     } catch (khataErr) {
       console.warn("Tank khata sync notice:", khataErr);
+    }
+
+    // 7. Audit in dip_variations table
+    try {
+      const varType = body.variation_type || (differenceLiters < 0 ? "low" : differenceLiters > 0 ? "high" : "normal");
+      const rType = body.reason_type || (differenceLiters < 0 ? "بخارات" : differenceLiters > 0 ? "نئی وصولی" : "فروخت");
+      const rNote = (body.reason_note || body.notes || "").trim();
+
+      await db.insert(dipVariations).values({
+        tank_id: tankId,
+        pump_id: pumpId,
+        previous_dip_mm: tank.current_dip_mm || 0,
+        current_dip_mm: dipMm,
+        difference_liters: differenceLiters,
+        variation_type: varType,
+        reason_type: rType,
+        reason_note: rNote,
+        date: dateStr,
+        created_by: createdBy,
+        created_at: nowIso,
+      });
+    } catch (varErr) {
+      console.warn("Dip variation sync notice:", varErr);
     }
 
     return NextResponse.json({

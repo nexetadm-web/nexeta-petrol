@@ -12,6 +12,17 @@ import {
   SuperAdminSessionData,
 } from "./jwt";
 
+export const SUPER_ADMIN_EMAILS = [
+  "mnuhbhatti333@gmail.com",
+  "mnuhbhattii333@gmail.com",
+  "admin@nexetapetrol.com",
+];
+
+export function isSuperAdminEmail(email?: string | null): boolean {
+  if (!email) return false;
+  return SUPER_ADMIN_EMAILS.includes(email.trim().toLowerCase());
+}
+
 export async function hashPassword(password: string): Promise<string> {
   const salt = await bcrypt.genSalt(10);
   return bcrypt.hash(password, salt);

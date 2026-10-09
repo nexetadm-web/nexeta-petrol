@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
@@ -18,7 +18,8 @@ import {
   Droplets,
   Users,
   Wallet,
-  Sliders
+  Sliders,
+  ShieldAlert
 } from "lucide-react";
 
 interface SidebarProps {
@@ -122,6 +123,18 @@ const NAV_ITEMS = [
 
 export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.isSuperAdmin || data?.session?.isSuperAdmin || data?.session?.role === "super_admin") {
+          setIsSuperAdmin(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <>
@@ -155,6 +168,25 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
               <X className="w-5 h-5" />
             </button>
           </div>
+
+          {/* Super Admin Access Banner */}
+          {isSuperAdmin && (
+            <div className="mb-3 px-1">
+              <Link
+                href="/super-admin/dashboard"
+                onClick={onClose}
+                className="flex items-center justify-between w-full px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-xs shadow-md hover:shadow-lg hover:from-purple-700 hover:to-indigo-700 transition-all group"
+              >
+                <div className="flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-purple-200 group-hover:scale-110 transition-transform" />
+                  <span>🛡️ سپر ایڈمن پورٹل</span>
+                </div>
+                <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full uppercase tracking-wider font-semibold">
+                  Admin
+                </span>
+              </Link>
+            </div>
+          )}
 
           {/* Navigation Links */}
           <nav className="flex-1 space-y-1 overflow-y-auto pr-1">

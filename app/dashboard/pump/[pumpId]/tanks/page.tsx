@@ -17,24 +17,34 @@ import {
   Sliders,
   ChevronRight,
   TrendingUp,
-  FileSpreadsheet
+  FileSpreadsheet,
+  History,
+  X,
+  Layers,
+  Sparkles,
+  ShieldCheck
 } from "lucide-react";
 import { formatLitres } from "@/lib/formatters";
 
 interface TankItem {
   id: number;
   pump_id: number;
+  tank_no: number;
   name: string;
   tank_name: string;
   fuel_type: string;
   product: string;
   capacity: number;
   capacity_liters: number;
+  height_mm: number;
   tank_height_mm: number;
   current_dip_mm: number;
   current_stock: number;
   current_stock_liters: number;
   fill_percentage: number;
+  has_dip_chart: boolean;
+  readings_count?: number;
+  dip_chart_image_url?: string | null;
   created_at?: string;
 }
 
@@ -44,13 +54,15 @@ export default function PumpTanksPage() {
   const pumpId = params?.pumpId as string;
 
   const [tanks, setTanks] = useState<TankItem[]>([]);
+  const [pumpName, setPumpName] = useState<string>("Nexeta Petrol");
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Form State
-  const [tankName, setTankName] = useState("");
+  const [tankNo, setTankNo] = useState<number>(1);
+  const [tankNameInput, setTankNameInput] = useState("");
   const [product, setProduct] = useState("Petrol");
   const [capacityChoice, setCapacityChoice] = useState("40000");
   const [customCapacity, setCustomCapacity] = useState("");
@@ -64,6 +76,10 @@ export default function PumpTanksPage() {
       const data = await res.json();
       if (data.success) {
         setTanks(data.tanks || []);
+        if (data.pump?.pump_name) {
+          setPumpName(data.pump.pump_name);
+        }
+        setTankNo((data.tanks?.length || 0) + 1);
       }
     } catch (err) {
       console.error("Failed to load tanks:", err);
@@ -75,6 +91,17 @@ export default function PumpTanksPage() {
   useEffect(() => {
     fetchTanks();
   }, [pumpId]);
+
+  const handleOpenAddModal = () => {
+    setTankNo(tanks.length + 1);
+    setTankNameInput(`Tank ${tanks.length + 1} - ${product}`);
+    setShowAddModal(true);
+  };
+
+  const handleProductChange = (prod: string) => {
+    setProduct(prod);
+    setTankNameInput(`Tank ${tankNo} - ${prod}`);
+  };
 
   const handleAddTank = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,187 +121,268 @@ export default function PumpTanksPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          tank_name: tankName,
+          tank_no: tankNo,
+          tank_name: tankNameInput || `Tank ${tankNo} - ${product}`,
           product,
           capacity_liters: finalCapacity,
-          tank_height_mm: parseFloat(tankHeightMm) || 2500,
+          height_mm: parseFloat(tankHeightMm) || 2500,
         }),
       });
 
       const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "ٹینک شامل کرنے میں مسئلہ پیش آیا");
+      if (data.success) {
+        setShowAddModal(false);
+        setTankNameInput("");
+        setCustomCapacity("");
+        await fetchTanks();
+      } else {
+        setErrorMsg(data.error || "ٹینک شامل کرنے میں مسئلہ پیش آیا");
       }
-
-      setShowAddModal(false);
-      setTankName("");
-      setCustomCapacity("");
-      await fetchTanks();
     } catch (err: any) {
-      setErrorMsg(err.message || "Failed to add tank");
+      setErrorMsg(err.message || "نیٹ ورک خرابی");
     } finally {
       setSubmitting(false);
     }
   };
 
+  const getProductColor = (prod: string) => {
+    const p = (prod || "").toLowerCase();
+    if (p.includes("petrol") || p.includes("super")) {
+      return {
+        badge: "bg-emerald-100 text-emerald-800 border-emerald-300",
+        bar: "bg-emerald-500",
+        icon: "text-emerald-600 bg-emerald-50",
+      };
+    }
+    if (p.includes("diesel")) {
+      return {
+        badge: "bg-amber-100 text-amber-800 border-amber-300",
+        bar: "bg-amber-500",
+        icon: "text-amber-600 bg-amber-50",
+      };
+    }
+    if (p.includes("hobc") || p.includes("octane")) {
+      return {
+        badge: "bg-purple-100 text-purple-800 border-purple-300",
+        bar: "bg-purple-500",
+        icon: "text-purple-600 bg-purple-50",
+      };
+    }
+    return {
+      badge: "bg-blue-100 text-blue-800 border-blue-300",
+      bar: "bg-blue-500",
+      icon: "text-blue-600 bg-blue-50",
+    };
+  };
+
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
+    <div className="min-h-screen bg-[#f8fafc] p-4 lg:p-8 space-y-6">
+      {/* Top Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
         <div>
-          <div className="flex items-center gap-2 text-xs text-indigo-600 font-bold uppercase tracking-wider mb-1">
-            <Link href="/dashboard" className="hover:underline">Dashboard</Link>
-            <span>/</span>
-            <span>Tanks & Calibration</span>
+          <div className="flex items-center gap-2 text-xs font-bold text-indigo-600 mb-1">
+            <Sliders className="w-4 h-4" />
+            <span>ملٹی ٹینک مینیجمنٹ اور ڈِپ چارٹ سسٹم</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-            زیرِ زمین ٹینکس و ڈِپ چارٹ سسٹم (Underground Tanks)
+          <h1 className="text-2xl lg:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+            <span>پمپ: {pumpName}</span>
+            <span className="text-sm font-bold bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full border border-indigo-200">
+              ٹوٹل ٹینک: {tanks.length}
+            </span>
           </h1>
-          <p className="text-sm text-slate-500 font-medium mt-1">
-            ہر ٹینک کا الگ کسٹم ڈِپ چارٹ • درست لیٹرز کا حساب • PSO / Shell سرٹیفائیڈ کیلیبریشن
+          <p className="text-xs text-slate-500 mt-1">
+            تمام پیمائشیں سختی سے صرف ملی میٹر (mm) میں ہیں۔ ہر ٹینک کا الگ ڈِپ چارٹ اور الگ اسٹاک حساب۔
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <Link
-            href={`/dashboard/pump/${pumpId}/stock`}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 font-bold text-xs shadow-xs transition-colors"
+            href={`/dashboard/pump/${pumpId}/tanks/dip-charts`}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-sm rounded-xl border border-indigo-200 transition-all shadow-xs"
           >
-            <Gauge className="w-4 h-4 text-indigo-600" />
-            <span>روزانہ ڈِپ انٹری (Daily Dip)</span>
+            <Layers className="w-4 h-4" />
+            <span>مرکزی ڈِپ چارٹ مینیجر</span>
+          </Link>
+
+          <Link
+            href={`/dashboard/pump/${pumpId}/variations`}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl border border-slate-300 transition-all shadow-xs"
+          >
+            <History className="w-4 h-4" />
+            <span>ویرینشن لاگز</span>
           </Link>
 
           <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 text-white font-bold text-xs shadow-md transition-all hover:scale-102 active:scale-98"
+            onClick={handleOpenAddModal}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm rounded-xl shadow-md transition-all hover:shadow-lg transform active:scale-95"
           >
-            <Plus className="w-4 h-4" />
-            <span>نیا ٹینک شامل کریں (+ Add Tank)</span>
+            <Plus className="w-5 h-5" />
+            <span>+ نیا ٹینک شامل کریں</span>
           </button>
         </div>
       </div>
 
-      {/* Tanks Grid */}
+      {/* Main Content Area */}
       {loading ? (
-        <div className="p-12 text-center text-slate-400">
-          <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-indigo-600" />
-          <p className="text-sm font-medium">ٹینکس لوڈ ہو رہے ہیں...</p>
+        <div className="p-16 text-center bg-white rounded-2xl shadow-sm border border-slate-200">
+          <RefreshCw className="w-8 h-8 animate-spin text-indigo-600 mx-auto mb-3" />
+          <p className="text-slate-600 font-semibold text-sm">ٹینکوں کی تفصیل لوڈ ہو رہی ہے...</p>
         </div>
       ) : tanks.length === 0 ? (
-        <div className="p-12 text-center bg-white rounded-3xl border border-dashed border-slate-300">
-          <Droplets className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <h3 className="text-base font-bold text-slate-700">اس پمپ کے لیے کوئی ٹینک موجود نہیں</h3>
-          <p className="text-xs text-slate-400 mt-1 mb-4">
-            پہلا ٹینک شامل کر کے اس کا مخصوص ڈِپ چارٹ سیٹ کریں۔
+        <div className="p-16 text-center bg-white rounded-2xl shadow-sm border border-slate-200 space-y-4">
+          <Droplets className="w-16 h-16 text-slate-300 mx-auto" />
+          <h3 className="text-lg font-bold text-slate-800">اس پمپ کے لیے کوئی ٹینک موجود نہیں ہے</h3>
+          <p className="text-sm text-slate-500 max-w-md mx-auto">
+            اپنے انڈر گراؤنڈ ٹینکس شامل کریں تاکہ ہر ٹینک کا کسٹم ڈِپ چارٹ اپلوڈ کر کے درست لیٹرز کا حساب کیا جا سکے۔
           </p>
           <button
-            onClick={() => setShowAddModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold text-xs shadow-sm hover:bg-indigo-700"
+            onClick={handleOpenAddModal}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl shadow-md transition-all"
           >
-            <Plus className="w-4 h-4" />
-            <span>ابھی ٹینک ایڈ کریں</span>
+            <Plus className="w-5 h-5" />
+            <span>پہلا ٹینک شامل کریں</span>
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {tanks.map((tank) => {
-            const isPetrol = tank.product?.toLowerCase().includes("petrol") || tank.product?.toLowerCase().includes("super");
-            const isDiesel = tank.product?.toLowerCase().includes("diesel");
-            const isLow = tank.fill_percentage < 20;
-
-            const badgeColor = isPetrol
-              ? "bg-emerald-100 text-emerald-800 border-emerald-200"
-              : isDiesel
-              ? "bg-amber-100 text-amber-800 border-amber-200"
-              : "bg-blue-100 text-blue-800 border-blue-200";
-
-            const progressColor = isLow
-              ? "bg-rose-500"
-              : isPetrol
-              ? "bg-emerald-500"
-              : "bg-amber-500";
+            const colors = getProductColor(tank.product || tank.fuel_type);
+            const hasChart = Boolean(tank.has_dip_chart);
+            const height = tank.height_mm || tank.tank_height_mm || 2500;
+            const cap = tank.capacity_liters || tank.capacity || 40000;
+            const stock = tank.current_stock_liters ?? tank.current_stock ?? 0;
+            const dip = tank.current_dip_mm ?? 0;
+            const fillPct = cap > 0 ? Math.min(100, Math.round((stock / cap) * 100)) : 0;
 
             return (
               <div
                 key={tank.id}
-                className="bg-white rounded-3xl border border-slate-200 shadow-lg hover:shadow-xl transition-all p-6 flex flex-col justify-between group relative overflow-hidden"
+                className={`rounded-2xl p-6 transition-all duration-200 shadow-md hover:shadow-xl ${
+                  !hasChart
+                    ? "bg-rose-50/40 border-2 border-rose-500 ring-4 ring-rose-100"
+                    : "bg-white border border-slate-200"
+                }`}
               >
-                {/* Top Header */}
-                <div>
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black shadow-inner">
-                        <Droplets className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <h3 className="font-extrabold text-lg text-slate-900 leading-tight">
-                          {tank.tank_name || tank.name}
-                        </h3>
-                        <span className="text-[11px] text-slate-400 font-medium">
-                          Tank ID: #{tank.id} • Height: {tank.tank_height_mm}mm
+                {/* Header */}
+                <div className="flex items-start justify-between gap-3 pb-4 border-b border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-lg ${colors.icon}`}>
+                      <Fuel className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-slate-400 uppercase tracking-wider">
+                          ٹینک نمبر {tank.tank_no || tank.id}
+                        </span>
+                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${colors.badge}`}>
+                          {tank.product || tank.fuel_type}
                         </span>
                       </div>
-                    </div>
-
-                    <span className={`text-xs px-2.5 py-1 rounded-full font-bold border ${badgeColor}`}>
-                      {tank.product}
-                    </span>
-                  </div>
-
-                  {/* Stock Metrics Display */}
-                  <div className="grid grid-cols-2 gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-100 mb-4">
-                    <div>
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                        Current Dip (ڈِپ پیمائش)
-                      </div>
-                      <div className="text-xl font-black text-slate-900 font-mono mt-0.5">
-                        {tank.current_dip_mm > 0 ? `${tank.current_dip_mm} mm` : "Not measured"}
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                        Live Stock (موجودہ تیل)
-                      </div>
-                      <div className="text-xl font-black text-indigo-700 font-mono mt-0.5">
-                        {formatLitres(tank.current_stock_liters)}
-                      </div>
+                      <h3 className="text-xl font-black text-slate-900 mt-0.5">
+                        {tank.tank_name || tank.name || `Tank #${tank.id}`}
+                      </h3>
                     </div>
                   </div>
 
-                  {/* Visual Fill Gauge */}
-                  <div className="mb-4">
-                    <div className="flex items-center justify-between text-xs font-bold text-slate-600 mb-1.5">
-                      <span>ٹینک لیول (Capacity: {formatLitres(tank.capacity_liters)})</span>
-                      <span className={isLow ? "text-rose-600" : "text-emerald-600"}>
-                        {tank.fill_percentage}%
+                  {/* Dip Chart Status Badge */}
+                  <div className="text-right">
+                    {hasChart ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-xs">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>✅ اپلوڈ شدہ ({tank.readings_count || "فعال"} ریڈنگز)</span>
                       </span>
-                    </div>
-                    <div className="w-full h-3 rounded-full bg-slate-100 overflow-hidden p-0.5 border border-slate-200">
-                      <div
-                        className={`h-full rounded-full transition-all duration-500 ${progressColor}`}
-                        style={{ width: `${Math.min(100, Math.max(4, tank.fill_percentage))}%` }}
-                      />
-                    </div>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-rose-600 text-white animate-pulse shadow-sm">
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                        <span>❌ ڈِپ چارٹ نہیں لگا</span>
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                {/* Bottom Actions */}
-                <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-2">
+                {/* Specs */}
+                <div className="grid grid-cols-2 gap-3 my-4 p-3.5 bg-slate-50/80 rounded-xl text-xs">
+                  <div>
+                    <span className="text-slate-400 font-medium block">کل گنجائش (Capacity)</span>
+                    <span className="text-slate-800 font-bold text-sm">
+                      {formatLitres(cap)} L
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 font-medium block">ٹینک کی اونچائی (Height)</span>
+                    <span className="text-slate-800 font-bold text-sm">
+                      {height.toLocaleString()} mm
+                    </span>
+                  </div>
+                </div>
+
+                {/* Stock & Dip Readings */}
+                <div className="space-y-3 mb-5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-slate-600">
+                      موجودہ ڈِپ: <strong className="text-slate-900 font-black text-sm">{dip} mm</strong>
+                    </span>
+                    <span className="font-semibold text-slate-600">
+                      موجودہ اسٹاک: <strong className="text-indigo-600 font-black text-sm">{formatLitres(stock)} L</strong> ({fillPct}%)
+                    </span>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden p-0.5 border border-slate-200">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${colors.bar}`}
+                      style={{ width: `${Math.max(4, fillPct)}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Alert Box for Missing Dip Chart */}
+                {!hasChart && (
+                  <div className="mb-4 p-3.5 bg-rose-100 border border-rose-300 rounded-xl text-xs text-rose-900 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="w-5 h-5 text-rose-600 flex-shrink-0" />
+                      <div>
+                        <strong className="block font-bold">ڈِپ چارٹ لگانا لازمی ہے!</strong>
+                        <span className="text-[11px] text-rose-700">اس ٹینک کی ملی میٹر پیمائش کا چارٹ ابھی تک فیڈ نہیں ہوا۔</span>
+                      </div>
+                    </div>
+                    <Link
+                      href={`/dashboard/pump/${pumpId}/tanks/dip-charts?tank=${tank.id}`}
+                      className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg shadow-sm whitespace-nowrap"
+                    >
+                      ڈِپ چارٹ لگائیں
+                    </Link>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-slate-100">
                   <Link
-                    href={`/dashboard/pump/${pumpId}/tanks/${tank.id}/dip-chart`}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs transition-colors border border-indigo-200/60"
+                    href={`/dashboard/pump/${pumpId}/tanks/dip-charts?tank=${tank.id}`}
+                    className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl font-bold text-xs transition-all ${
+                      !hasChart
+                        ? "bg-rose-600 hover:bg-rose-700 text-white shadow-md animate-pulse"
+                        : "bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200"
+                    }`}
                   >
                     <Sliders className="w-3.5 h-3.5" />
-                    <span>Manage Dip Chart (ڈِپ چارٹ ایڈ کریں)</span>
+                    <span>{hasChart ? "ڈِپ چارٹ دیکھیں / تبدیل" : "⚠️ ڈِپ چارٹ لگائیں"}</span>
                   </Link>
 
                   <Link
                     href={`/dashboard/pump/${pumpId}/stock?tank=${tank.id}`}
-                    className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
-                    title="Enter Today Dip"
+                    className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl font-bold text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition-all"
                   >
-                    <ChevronRight className="w-4 h-4" />
+                    <Gauge className="w-3.5 h-3.5" />
+                    <span>روزانہ ڈِپ درج کریں</span>
+                  </Link>
+
+                  <Link
+                    href={`/dashboard/pump/${pumpId}/variations?tank=${tank.id}`}
+                    className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl font-bold text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 transition-all"
+                  >
+                    <History className="w-3.5 h-3.5" />
+                    <span>ویرینشن ہسٹری</span>
                   </Link>
                 </div>
               </div>
@@ -283,117 +391,148 @@ export default function PumpTanksPage() {
         </div>
       )}
 
-      {/* Modal: Add Tank */}
+      {/* Add Tank Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-200 relative animate-in fade-in zoom-in-95 duration-150">
-            <h2 className="text-xl font-black text-slate-900 mb-1">
-              نیا زیرِ زمین ٹینک شامل کریں (+ Add Tank)
-            </h2>
-            <p className="text-xs text-slate-500 mb-5">
-              ٹینک کی تفصیلات اور کل گنجائش منتخب کریں، اس کے بعد ڈِپ چارٹ اپلوڈ کیا جا سکتا ہے۔
-            </p>
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2 text-indigo-700 font-bold text-lg">
+                <Plus className="w-5 h-5" />
+                <span>نیا انڈر گراؤنڈ ٹینک شامل کریں</span>
+              </div>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
             {errorMsg && (
-              <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
+              <div className="mt-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl font-medium">
                 {errorMsg}
               </div>
             )}
 
-            <form onSubmit={handleAddTank} className="space-y-4">
+            <form onSubmit={handleAddTank} className="space-y-4 mt-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    ٹینک نمبر (Auto)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={tankNo}
+                    onChange={(e) => setTankNo(parseInt(e.target.value) || 1)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 font-bold text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    پروڈکٹ (Fuel Type) *
+                  </label>
+                  <select
+                    value={product}
+                    onChange={(e) => handleProductChange(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white font-bold text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="Petrol">Petrol (پٹرول)</option>
+                    <option value="Diesel">Diesel (ڈیزل)</option>
+                    <option value="Super">Super (سپر پٹرول)</option>
+                    <option value="HOBC">HOBC (ہائی اوکٹین)</option>
+                  </select>
+                </div>
+              </div>
+
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
-                  ٹینک کا نام (Tank Name) *
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  ٹینک کا نام (Tank Label) *
                 </label>
                 <input
                   type="text"
+                  value={tankNameInput}
+                  onChange={(e) => setTankNameInput(e.target.value)}
+                  placeholder="مثال: Tank 1 - Petrol"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   required
-                  placeholder="مثال: Tank 1 (Main Petrol)"
-                  value={tankName}
-                  onChange={(e) => setTankName(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    پروڈکٹ (Fuel Type) *
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    کل گنجائش (Capacity) *
                   </label>
                   <select
-                    value={product}
-                    onChange={(e) => setProduct(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                    value={capacityChoice}
+                    onChange={(e) => setCapacityChoice(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
                   >
-                    <option value="Petrol">Petrol Super (پٹرول)</option>
-                    <option value="Diesel">High Speed Diesel (ڈیزل)</option>
-                    <option value="HiOctane">Hi-Octane HOBC (اوکٹین)</option>
-                    <option value="Super">Super (سپر)</option>
+                    <option value="23500">23,500 L</option>
+                    <option value="30000">30,000 L</option>
+                    <option value="40000">40,000 L (معیاری)</option>
+                    <option value="50000">50,000 L</option>
+                    <option value="custom">کسٹم گنجائش...</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
                     ٹینک اونچائی (Height mm) *
                   </label>
                   <input
                     type="number"
-                    required
-                    placeholder="2500"
+                    step="1"
+                    min="500"
+                    max="10000"
                     value={tankHeightMm}
                     onChange={(e) => setTankHeightMm(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-slate-900 text-sm font-medium font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="مثال: 2500"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                    required
                   />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">صرف ملی میٹر mm</span>
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
-                  کل گنجائش (Capacity Liters) *
-                </label>
-                <select
-                  value={capacityChoice}
-                  onChange={(e) => setCapacityChoice(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-slate-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                >
-                  <option value="40000">40,000 Litres (معیاری بڑا ٹینک)</option>
-                  <option value="30000">30,000 Litres (معیاری درمیانہ)</option>
-                  <option value="23500">23,500 Litres (چھوٹا ٹینک)</option>
-                  <option value="50000">50,000 Litres (اضافی بڑا ٹینک)</option>
-                  <option value="custom">دیگر کسٹم گنجائش درج کریں (Custom)</option>
-                </select>
               </div>
 
               {capacityChoice === "custom" && (
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
-                    کسٹم گنجائش لیٹرز (Custom Capacity L) *
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    کسٹم گنجائش (لیٹرز) *
                   </label>
                   <input
                     type="number"
-                    required
-                    placeholder="35000"
+                    step="100"
                     value={customCapacity}
                     onChange={(e) => setCustomCapacity(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-slate-900 text-sm font-medium font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="لیٹرز درج کریں (مثال: 35000)"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    required
                   />
                 </div>
               )}
 
-              <div className="pt-3 flex items-center justify-end gap-3">
+              <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-xs text-indigo-800">
+                💡 نیا ٹینک بننے کے بعد اس کا <strong>ڈِپ چارٹ</strong> لگانا ضروری ہوگا۔ آپ ٹیبل، CSV یا تصویر سے ڈِپ چارٹ لگا سکتے ہیں۔
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors"
+                  className="px-4 py-2.5 rounded-xl text-slate-600 font-bold text-sm hover:bg-slate-100"
                 >
-                  منسوخ (Cancel)
+                  منسوخ کریں
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition-all disabled:opacity-50"
+                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md transition-all disabled:opacity-50"
                 >
-                  {submitting ? "محفوظ ہو رہا ہے..." : "ٹینک محفوظ کریں (Save Tank)"}
+                  {submitting ? "محفوظ ہو رہا ہے..." : "ٹینک محفوظ کریں"}
                 </button>
               </div>
             </form>

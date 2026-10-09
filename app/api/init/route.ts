@@ -22,17 +22,32 @@ export async function GET() {
     `);
 
     // Ensure custom dip chart and tank columns exist
+    try { await tursoClient.execute("ALTER TABLE tanks ADD COLUMN tank_no INTEGER DEFAULT 1;"); } catch (e) {}
     try { await tursoClient.execute("ALTER TABLE tanks ADD COLUMN tank_name TEXT;"); } catch (e) {}
     try { await tursoClient.execute("ALTER TABLE tanks ADD COLUMN product TEXT;"); } catch (e) {}
     try { await tursoClient.execute("ALTER TABLE tanks ADD COLUMN capacity_liters REAL;"); } catch (e) {}
+    try { await tursoClient.execute("ALTER TABLE tanks ADD COLUMN height_mm INTEGER DEFAULT 2500;"); } catch (e) {}
     try { await tursoClient.execute("ALTER TABLE tanks ADD COLUMN tank_height_mm REAL DEFAULT 2500;"); } catch (e) {}
     try { await tursoClient.execute("ALTER TABLE tanks ADD COLUMN current_dip_mm REAL DEFAULT 0;"); } catch (e) {}
     try { await tursoClient.execute("ALTER TABLE tanks ADD COLUMN current_stock_liters REAL DEFAULT 0;"); } catch (e) {}
+    try { await tursoClient.execute("ALTER TABLE tanks ADD COLUMN dip_chart_image_url TEXT;"); } catch (e) {}
+    try { await tursoClient.execute("ALTER TABLE tanks ADD COLUMN has_dip_chart INTEGER DEFAULT 0;"); } catch (e) {}
     try { await tursoClient.execute("ALTER TABLE tanks ADD COLUMN created_at TEXT;"); } catch (e) {}
     try { await tursoClient.execute("UPDATE tanks SET tank_name = name WHERE tank_name IS NULL;"); } catch (e) {}
     try { await tursoClient.execute("UPDATE tanks SET product = fuel_type WHERE product IS NULL;"); } catch (e) {}
     try { await tursoClient.execute("UPDATE tanks SET capacity_liters = capacity WHERE capacity_liters IS NULL;"); } catch (e) {}
     try { await tursoClient.execute("UPDATE tanks SET current_stock_liters = current_stock WHERE current_stock_liters IS NULL;"); } catch (e) {}
+    try { await tursoClient.execute("UPDATE tanks SET height_mm = 2500 WHERE height_mm IS NULL;"); } catch (e) {}
+    try { await tursoClient.execute("UPDATE tanks SET tank_no = id WHERE tank_no IS NULL OR tank_no = 0;"); } catch (e) {}
+
+    // Check which tanks have dip charts and mark has_dip_chart = 1
+    try {
+      await tursoClient.execute(`
+        UPDATE tanks 
+        SET has_dip_chart = 1 
+        WHERE id IN (SELECT DISTINCT tank_id FROM dip_charts WHERE tank_id IS NOT NULL);
+      `);
+    } catch (e) {}
 
     // Ensure dip_charts has dip_mm and volume_liters
     try { await tursoClient.execute("ALTER TABLE dip_charts ADD COLUMN dip_mm REAL;"); } catch (e) {}
@@ -52,6 +67,24 @@ export async function GET() {
         received_liters REAL NOT NULL DEFAULT 0,
         sale_liters REAL NOT NULL DEFAULT 0,
         difference_liters REAL NOT NULL DEFAULT 0,
+        created_by TEXT,
+        created_at TEXT
+      );
+    `);
+
+    // Ensure dip_variations table exists
+    await tursoClient.execute(`
+      CREATE TABLE IF NOT EXISTS dip_variations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tank_id INTEGER NOT NULL REFERENCES tanks(id) ON DELETE CASCADE,
+        pump_id INTEGER NOT NULL DEFAULT 1,
+        previous_dip_mm REAL NOT NULL DEFAULT 0,
+        current_dip_mm REAL NOT NULL,
+        difference_liters REAL NOT NULL,
+        variation_type TEXT NOT NULL,
+        reason_type TEXT NOT NULL,
+        reason_note TEXT,
+        date TEXT NOT NULL,
         created_by TEXT,
         created_at TEXT
       );
