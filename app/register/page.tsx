@@ -78,12 +78,15 @@ export default function RegisterPage() {
       }
 
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "رجسٹریشن میں مسئلہ پیش آیا۔ دوبارہ کوشش کریں۔");
+        console.error("REGISTER FAILURE DETAILS:", data);
+        const errDetails = data.details ? ` (${data.details.substring(0, 150)})` : "";
+        throw new Error((data.error || "رجسٹریشن میں مسئلہ پیش آیا۔ دوبارہ کوشش کریں۔") + errDetails);
       }
 
       // Successful registration & session created
       router.push("/dashboard");
     } catch (err: any) {
+      console.error("Catch error:", err);
       setError(err.message || "رجسٹریشن میں مسئلہ پیش آیا۔");
     } finally {
       setLoading(false);

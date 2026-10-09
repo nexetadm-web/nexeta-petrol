@@ -190,7 +190,9 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { 
         success: false, 
-        error: error.message || "رجسٹریشن میں مسئلہ پیش آیا۔ دوبارہ کوشش کریں۔" 
+        error: error.message || "رجسٹریشن میں مسئلہ پیش آیا۔ دوبارہ کوشش کریں۔",
+        details: String(error?.stack || error?.message || error),
+        turso_configured: !!process.env.TURSO_DATABASE_URL
       },
       { status: 500 }
     );
