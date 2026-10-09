@@ -17,7 +17,8 @@ import {
   BadgeDollarSign,
   Droplets,
   Users,
-  Wallet
+  Wallet,
+  Sliders
 } from "lucide-react";
 
 interface SidebarProps {
@@ -53,6 +54,13 @@ const NAV_ITEMS = [
     href: "/readings",
     icon: Gauge,
     iconColor: "text-blue-600",
+  },
+  {
+    name: "Tanks & Dip Chart",
+    urdu: "ٹینکس و کسٹم ڈِپ چارٹ",
+    href: "/tanks",
+    icon: Sliders,
+    iconColor: "text-indigo-600",
   },
   {
     name: "Tank Khata (Dip)",

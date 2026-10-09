@@ -365,6 +365,15 @@ export default function SuperAdminDashboardPage() {
                               </button>
                             )}
 
+                            {/* Tanks & Dip Chart */}
+                            <Link
+                              href={`/super-admin/pump/${pump.id}/tanks`}
+                              className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-indigo-300 font-bold text-[11px] transition-colors"
+                              title="View Tanks & Dip Charts"
+                            >
+                              ٹینکس و ڈِپ
+                            </Link>
+
                             {/* Login As Pump */}
                             <button
                               onClick={() => handleAction("impersonate", pump.id)}

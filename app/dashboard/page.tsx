@@ -405,8 +405,8 @@ export default function StationDashboard() {
             </div>
           </div>
           <div className="mt-4 pt-3 border-t border-cyan-200/60 flex justify-end">
-            <Link href="/tank-khata" className="text-xs font-black text-cyan-700 hover:text-cyan-900 flex items-center gap-1 group-hover:underline">
-              <span>ڈپ کھاتہ و ٹینک کیلیبریشن</span>
+            <Link href={`/dashboard/pump/${session?.pumpId || 1}/tanks`} className="text-xs font-black text-cyan-700 hover:text-cyan-900 flex items-center gap-1 group-hover:underline">
+              <span>کسٹم ڈِپ چارٹ و ٹینک اسٹاک</span>
               <ArrowUpRight className="w-3.5 h-3.5" />
             </Link>
           </div>

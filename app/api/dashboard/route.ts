@@ -136,13 +136,16 @@ export async function GET(request: Request) {
     // 9. Fetch Tanks for this pump
     const allTanks = await db.select().from(tanks).where(eq(tanks.pump_id, pumpId));
     const tanksFormatted = allTanks.map((t) => {
-      const fillPercentage = t.capacity > 0 ? Math.min(100, Math.round((t.current_stock / t.capacity) * 100)) : 0;
+      const cap = t.capacity_liters || t.capacity || 25000;
+      const stock = t.current_stock_liters !== null && t.current_stock_liters !== undefined ? t.current_stock_liters : t.current_stock;
+      const fillPercentage = cap > 0 ? Math.min(100, Math.round((stock / cap) * 100)) : 0;
       return {
         id: t.id,
-        name: t.name,
-        fuel_type: t.fuel_type as any,
-        capacity: t.capacity,
-        current_stock: t.current_stock,
+        name: t.tank_name || t.name,
+        fuel_type: (t.product || t.fuel_type) as any,
+        capacity: cap,
+        current_stock: stock,
+        current_dip_mm: t.current_dip_mm || 0,
         fill_percentage: fillPercentage,
       };
     });

@@ -21,6 +21,42 @@ export async function GET() {
       );
     `);
 
+    // Ensure custom dip chart and tank columns exist
+    try { await tursoClient.execute("ALTER TABLE tanks ADD COLUMN tank_name TEXT;"); } catch (e) {}
+    try { await tursoClient.execute("ALTER TABLE tanks ADD COLUMN product TEXT;"); } catch (e) {}
+    try { await tursoClient.execute("ALTER TABLE tanks ADD COLUMN capacity_liters REAL;"); } catch (e) {}
+    try { await tursoClient.execute("ALTER TABLE tanks ADD COLUMN tank_height_mm REAL DEFAULT 2500;"); } catch (e) {}
+    try { await tursoClient.execute("ALTER TABLE tanks ADD COLUMN current_dip_mm REAL DEFAULT 0;"); } catch (e) {}
+    try { await tursoClient.execute("ALTER TABLE tanks ADD COLUMN current_stock_liters REAL DEFAULT 0;"); } catch (e) {}
+    try { await tursoClient.execute("ALTER TABLE tanks ADD COLUMN created_at TEXT;"); } catch (e) {}
+    try { await tursoClient.execute("UPDATE tanks SET tank_name = name WHERE tank_name IS NULL;"); } catch (e) {}
+    try { await tursoClient.execute("UPDATE tanks SET product = fuel_type WHERE product IS NULL;"); } catch (e) {}
+    try { await tursoClient.execute("UPDATE tanks SET capacity_liters = capacity WHERE capacity_liters IS NULL;"); } catch (e) {}
+    try { await tursoClient.execute("UPDATE tanks SET current_stock_liters = current_stock WHERE current_stock_liters IS NULL;"); } catch (e) {}
+
+    // Ensure dip_charts has dip_mm and volume_liters
+    try { await tursoClient.execute("ALTER TABLE dip_charts ADD COLUMN dip_mm REAL;"); } catch (e) {}
+    try { await tursoClient.execute("ALTER TABLE dip_charts ADD COLUMN volume_liters REAL;"); } catch (e) {}
+    try { await tursoClient.execute("UPDATE dip_charts SET dip_mm = dip_value WHERE dip_mm IS NULL;"); } catch (e) {}
+    try { await tursoClient.execute("UPDATE dip_charts SET volume_liters = litres WHERE volume_liters IS NULL;"); } catch (e) {}
+
+    // Ensure stock_logs table exists
+    await tursoClient.execute(`
+      CREATE TABLE IF NOT EXISTS stock_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tank_id INTEGER NOT NULL REFERENCES tanks(id) ON DELETE CASCADE,
+        pump_id INTEGER NOT NULL DEFAULT 1,
+        date TEXT NOT NULL,
+        dip_mm REAL NOT NULL,
+        calculated_stock_liters REAL NOT NULL,
+        received_liters REAL NOT NULL DEFAULT 0,
+        sale_liters REAL NOT NULL DEFAULT 0,
+        difference_liters REAL NOT NULL DEFAULT 0,
+        created_by TEXT,
+        created_at TEXT
+      );
+    `);
+
     await tursoClient.execute(`
       CREATE TABLE IF NOT EXISTS nozzles (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

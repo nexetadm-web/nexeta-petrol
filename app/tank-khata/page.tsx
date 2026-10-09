@@ -885,7 +885,7 @@ export default function TankKhataPage() {
                           <tr key={c.id}>
                             <td className="py-1.5 px-3">{c.dip_value} {c.unit}</td>
                             <td className="py-1.5 px-3 text-right font-bold text-emerald-800">
-                              {c.litres.toLocaleString()} L
+                              {(c.litres || c.volume_liters || 0).toLocaleString()} L
                             </td>
                           </tr>
                         ))}
@@ -914,7 +914,7 @@ export default function TankKhataPage() {
                           <tr key={c.id}>
                             <td className="py-1.5 px-3">{c.dip_value} {c.unit}</td>
                             <td className="py-1.5 px-3 text-right font-bold text-amber-800">
-                              {c.litres.toLocaleString()} L
+                              {(c.litres || c.volume_liters || 0).toLocaleString()} L
                             </td>
                           </tr>
                         ))}

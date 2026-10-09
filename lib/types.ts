@@ -47,9 +47,16 @@ export interface Tank {
   id: number;
   pump_id?: number;
   name: string;
-  fuel_type: FuelType;
+  tank_name?: string;
+  fuel_type: FuelType | string;
+  product?: string;
   capacity: number;
+  capacity_liters?: number;
+  tank_height_mm?: number;
+  current_dip_mm?: number;
   current_stock: number;
+  current_stock_liters?: number;
+  created_at?: string;
 }
 
 export interface Nozzle {
@@ -157,10 +164,28 @@ export interface DipChart {
   id: number;
   pump_id?: number;
   tank_id?: number;
-  fuel_type: FuelType;
+  fuel_type?: FuelType | string;
   dip_value: number;
-  unit: "inch" | "cm" | string;
+  dip_mm?: number;
+  unit: "mm" | "inch" | "cm" | string;
   litres: number;
+  volume_liters?: number;
+}
+
+export interface StockLog {
+  id: number;
+  tank_id: number;
+  pump_id?: number;
+  date: string;
+  dip_mm: number;
+  calculated_stock_liters: number;
+  received_liters: number;
+  sale_liters: number;
+  difference_liters: number;
+  created_by?: string | null;
+  created_at?: string | null;
+  tank_name?: string;
+  fuel_type?: string;
 }
 
 export interface TankKhata {

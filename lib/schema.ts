@@ -48,10 +48,17 @@ export const superAdmins = sqliteTable("super_admins", {
 export const tanks = sqliteTable("tanks", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
-  name: text("name").notNull(), // e.g. "Petrol Tank 1", "Diesel Tank 1"
-  fuel_type: text("fuel_type").notNull(), // "Petrol" | "Diesel" | "HiOctane"
+  name: text("name").notNull(), // e.g. "Tank 1", "Tank 2"
+  tank_name: text("tank_name"), // alias for name
+  fuel_type: text("fuel_type").notNull(), // "Petrol" | "Diesel" | "HiOctane" | "Super"
+  product: text("product"), // alias for fuel_type
   capacity: real("capacity").notNull().default(25000), // in litres
+  capacity_liters: real("capacity_liters"), // alias for capacity
+  tank_height_mm: real("tank_height_mm").default(2500), // e.g. 2500 mm
+  current_dip_mm: real("current_dip_mm").default(0), // mm
   current_stock: real("current_stock").notNull().default(0), // in litres
+  current_stock_liters: real("current_stock_liters").default(0), // in litres
+  created_at: text("created_at"),
 });
 
 // 2. Nozzles (Supports 4 to 20 dynamically linked to a Tank)
@@ -156,15 +163,32 @@ export const expenses = sqliteTable("expenses", {
   note: text("note"),
 });
 
-// 11. Dip Chart Calibration Table (Maps Dip Inch/CM to Litres)
+// 11. Dip Chart Calibration Table (Maps Dip mm/inch/cm to Litres per tank)
 export const dipCharts = sqliteTable("dip_charts", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
   tank_id: integer("tank_id").references(() => tanks.id, { onDelete: "cascade" }),
-  fuel_type: text("fuel_type").notNull(), // "Petrol" | "Diesel" | "HiOctane"
-  dip_value: real("dip_value").notNull(), // Dip measurement value
-  unit: text("unit").notNull().default("inch"), // "inch" | "cm"
-  litres: real("litres").notNull(), // Calibrated litres corresponding to dip
+  fuel_type: text("fuel_type").notNull().default("Petrol"), // "Petrol" | "Diesel" | "HiOctane" | "Super"
+  dip_value: real("dip_value").notNull().default(0), // Backwards compatibility
+  dip_mm: real("dip_mm"), // Calibration dip in mm (e.g. 10, 20, 30... 2500)
+  unit: text("unit").notNull().default("mm"), // "mm" | "inch" | "cm"
+  litres: real("litres").notNull().default(0), // Backwards compatibility
+  volume_liters: real("volume_liters"), // Calibrated volume in litres
+});
+
+// 11b. Stock Logs Table (Tank-wise daily dip entries & calculated stock)
+export const stockLogs = sqliteTable("stock_logs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  tank_id: integer("tank_id").references(() => tanks.id, { onDelete: "cascade" }).notNull(),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
+  date: text("date").notNull(), // DD-MM-YYYY
+  dip_mm: real("dip_mm").notNull(), // Measured dip in mm
+  calculated_stock_liters: real("calculated_stock_liters").notNull(), // Litres from dip chart
+  received_liters: real("received_liters").notNull().default(0), // Inward tanker litres
+  sale_liters: real("sale_liters").notNull().default(0), // Outward sale litres
+  difference_liters: real("difference_liters").notNull().default(0), // Gain (+) / Loss (-)
+  created_by: text("created_by"),
+  created_at: text("created_at"),
 });
 
 // 12. Daily Tank Khata Table (Physical Dip vs Register Stock & Gain/Loss)
