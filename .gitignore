@@ -1,0 +1,14 @@
+node_modules
+.env
+.env.local
+.env*.local
+.env.production
+.next
+.vercel
+.turso
+*.db
+*.sqlite
+dist
+tsconfig.tsbuildinfo
+*.log
+.DS_Store
