@@ -7,26 +7,28 @@ import {
   creditSales, 
   expenses 
 } from "@/lib/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { getTodayDatePK, formatDate, toStandardYMD } from "@/lib/formatters";
+import { getCurrentPumpId } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const { searchParams } = new URL(request.url);
     const dateParam = searchParams.get("date");
     const targetDate = dateParam ? formatDate(dateParam) : getTodayDatePK();
     const ymdDate = toStandardYMD(targetDate);
 
-    // 1. Calculate Live Day Totals for the specified date
+    // 1. Calculate Live Day Totals for specified date and pump
     // A. Nozzle Sales
-    const allReadings = await db.select().from(dailyReadings);
+    const allReadings = await db.select().from(dailyReadings).where(eq(dailyReadings.pump_id, pumpId));
     const dateReadings = allReadings.filter((r) => r.date === targetDate || r.date === ymdDate);
     const totalNozzleSaleRs = dateReadings.reduce((sum, r) => sum + (r.amount || 0), 0);
 
     // B. Oil & Products Sales
-    const allProductSales = await db.select().from(productSales);
+    const allProductSales = await db.select().from(productSales).where(eq(productSales.pump_id, pumpId));
     const dateProductSales = allProductSales.filter((p) => p.date === targetDate || p.date === ymdDate);
     const totalOilProductsSaleRs = dateProductSales.reduce((sum, p) => sum + (p.total || 0), 0);
 
@@ -34,24 +36,25 @@ export async function GET(request: Request) {
     const totalSaleRs = totalNozzleSaleRs + totalOilProductsSaleRs;
 
     // D. Udhar Given on this date
-    const allCreditSales = await db.select().from(creditSales);
+    const allCreditSales = await db.select().from(creditSales).where(eq(creditSales.pump_id, pumpId));
     const dateUdharSales = allCreditSales.filter(
       (c) => (c.date === targetDate || c.date === ymdDate) && c.is_payment === 0
     );
     const totalUdharRs = dateUdharSales.reduce((sum, c) => sum + (c.total || 0), 0);
 
     // E. Kharcha / Expenses on this date
-    const allExpenses = await db.select().from(expenses);
+    const allExpenses = await db.select().from(expenses).where(eq(expenses.pump_id, pumpId));
     const dateExpenses = allExpenses.filter((e) => e.date === targetDate || e.date === ymdDate);
     const totalKharchaRs = dateExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
 
     // F. Expected Cash In Hand = Total Sale - Udhar - Kharcha
     const expectedCashInHand = Math.max(0, totalSaleRs - totalUdharRs - totalKharchaRs);
 
-    // 2. Fetch all saved Cash Closing records
+    // 2. Fetch all saved Cash Closing records for this pump
     const closings = await db
       .select()
       .from(cashClosings)
+      .where(eq(cashClosings.pump_id, pumpId))
       .orderBy(desc(cashClosings.id));
 
     return NextResponse.json({
@@ -74,6 +77,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const body = await request.json();
     const {
       date,
@@ -107,6 +111,7 @@ export async function POST(request: Request) {
     const [newClosing] = await db
       .insert(cashClosings)
       .values({
+        pump_id: pumpId,
         date: targetDate,
         shift: targetShift,
         total_nozzle_sale_rs: nNozzle,
@@ -136,6 +141,7 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
@@ -143,7 +149,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ success: false, error: "ID required" }, { status: 400 });
     }
 
-    await db.delete(cashClosings).where(eq(cashClosings.id, Number(id)));
+    await db.delete(cashClosings).where(and(eq(cashClosings.id, Number(id)), eq(cashClosings.pump_id, pumpId)));
 
     return NextResponse.json({
       success: true,

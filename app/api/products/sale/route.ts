@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { products, productSales } from "@/lib/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and } from "drizzle-orm";
 import { getTodayDateString } from "@/lib/formatters";
+import { getCurrentPumpId } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const body = await request.json();
     const { product_id, qty, date } = body;
 
@@ -23,15 +25,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Quantity must be greater than 0" }, { status: 400 });
     }
 
-    // Fetch product details
-    const pList = await db.select().from(products).where(eq(products.id, Number(product_id)));
+    const pList = await db
+      .select()
+      .from(products)
+      .where(and(eq(products.id, Number(product_id)), eq(products.pump_id, pumpId)));
+
     if (pList.length === 0) {
       return NextResponse.json({ success: false, error: "Product not found" }, { status: 404 });
     }
 
     const prod = pList[0];
 
-    // Check stock availability
     if (prod.stock_qty < nQty) {
       return NextResponse.json(
         {
@@ -49,6 +53,7 @@ export async function POST(request: Request) {
     const [saleRecord] = await db
       .insert(productSales)
       .values({
+        pump_id: pumpId,
         date: saleDate,
         product_id: prod.id,
         qty: nQty,
@@ -57,13 +62,12 @@ export async function POST(request: Request) {
       })
       .returning();
 
-    // Auto deduct product stock
     await db
       .update(products)
       .set({
         stock_qty: sql`MAX(0, ${products.stock_qty} - ${nQty})`,
       })
-      .where(eq(products.id, prod.id));
+      .where(and(eq(products.id, prod.id), eq(products.pump_id, pumpId)));
 
     return NextResponse.json({
       success: true,

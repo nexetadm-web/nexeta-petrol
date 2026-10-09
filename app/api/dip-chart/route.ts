@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { dipCharts } from "@/lib/schema";
-import { asc } from "drizzle-orm";
+import { asc, eq, and } from "drizzle-orm";
 import { calculateDipLitres } from "@/lib/dip-calculator";
+import { getCurrentPumpId } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const { searchParams } = new URL(request.url);
     const fuelType = searchParams.get("fuel_type");
     const dipVal = searchParams.get("dip");
@@ -26,8 +28,11 @@ export async function GET(request: Request) {
       });
     }
 
-    let query = db.select().from(dipCharts).orderBy(asc(dipCharts.dip_value));
-    const allCharts = await query;
+    const allCharts = await db
+      .select()
+      .from(dipCharts)
+      .where(eq(dipCharts.pump_id, pumpId))
+      .orderBy(asc(dipCharts.dip_value));
 
     return NextResponse.json({
       success: true,
@@ -40,6 +45,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const body = await request.json();
     const { tank_id, fuel_type, dip_value, unit, litres } = body;
 
@@ -53,6 +59,7 @@ export async function POST(request: Request) {
     const [record] = await db
       .insert(dipCharts)
       .values({
+        pump_id: pumpId,
         tank_id: tank_id ? Number(tank_id) : null,
         fuel_type,
         dip_value: parseFloat(dip_value),

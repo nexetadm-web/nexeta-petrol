@@ -1,10 +1,12 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { Navbar } from "./Navbar";
 import { Sidebar } from "./Sidebar";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
 
@@ -15,6 +17,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       .catch((err) => console.error("Database init error:", err))
       .finally(() => setIsInitializing(false));
   }, []);
+
+  // Determine if this is a standalone landing or auth route
+  const isStandaloneRoute =
+    pathname === "/" ||
+    pathname === "/login" ||
+    pathname === "/register" ||
+    pathname === "/billing" ||
+    pathname?.startsWith("/super-admin");
+
+  if (isStandaloneRoute) {
+    return <div className="min-h-screen bg-slate-50 text-slate-800">{children}</div>;
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800 relative">

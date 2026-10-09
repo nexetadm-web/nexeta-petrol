@@ -4,6 +4,7 @@ import { seedDatabase } from "@/lib/seed";
 import { db } from "@/lib/db";
 import { dipCharts, tankKhata, employees, employeeDuty, tanks } from "@/lib/schema";
 import { getTodayDateString, getTodayDatePK } from "@/lib/formatters";
+import { hashPassword } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -213,6 +214,98 @@ export async function GET() {
         value TEXT NOT NULL
       );
     `);
+
+    // 4. MULTI-TENANT SAAS CORE TABLES
+    await tursoClient.execute(`
+      CREATE TABLE IF NOT EXISTS pumps (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pump_name TEXT NOT NULL,
+        owner_name TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        city TEXT NOT NULL,
+        cnic TEXT,
+        password_hash TEXT NOT NULL,
+        subscription_status TEXT NOT NULL DEFAULT 'trial',
+        trial_ends_at TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+    `);
+
+    await tursoClient.execute(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pump_id INTEGER NOT NULL REFERENCES pumps(id) ON DELETE CASCADE,
+        email TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'owner',
+        name TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+    `);
+
+    await tursoClient.execute(`
+      CREATE TABLE IF NOT EXISTS super_admins (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        name TEXT NOT NULL DEFAULT 'Super Admin',
+        created_at TEXT NOT NULL
+      );
+    `);
+
+    // 5. MIGRATION: ADD pump_id TO ALL OPERATIONAL TABLES (DEFAULT 1)
+    const tablesToAlter = [
+      "tanks", "nozzles", "daily_rates", "daily_readings", "fuel_purchases",
+      "products", "product_sales", "credit_customers", "credit_sales",
+      "expenses", "dip_charts", "tank_khata", "employees", "employee_duty", "cash_closings"
+    ];
+
+    for (const tbl of tablesToAlter) {
+      try {
+        await tursoClient.execute(`ALTER TABLE ${tbl} ADD COLUMN pump_id INTEGER DEFAULT 1;`);
+      } catch (e) {
+        // column already exists
+      }
+      try {
+        await tursoClient.execute(`UPDATE ${tbl} SET pump_id = 1 WHERE pump_id IS NULL;`);
+      } catch (e) {}
+    }
+
+    // 6. DEFAULT PUMP 1 & SEED USERS
+    try {
+      const defaultPumpCountRes = await tursoClient.execute("SELECT count(*) as count FROM pumps WHERE id = 1");
+      const defaultPumpCount = (defaultPumpCountRes.rows[0]?.count as number) || 0;
+      if (defaultPumpCount === 0) {
+        const defaultPasswordHash = await hashPassword("demo123456");
+        const trialEnds = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+        await tursoClient.execute({
+          sql: `INSERT OR IGNORE INTO pumps (id, pump_name, owner_name, phone, email, city, cnic, password_hash, subscription_status, trial_ends_at, created_at)
+                VALUES (1, 'Nexeta Petrol', 'Muhammad Naveed', '03400072030', 'demo@nexetapetrol.com', 'Lahore', '35201-1234567-1', ?, 'active', ?, datetime('now'));`,
+          args: [defaultPasswordHash, trialEnds]
+        });
+
+        await tursoClient.execute({
+          sql: `INSERT OR IGNORE INTO users (id, pump_id, email, password_hash, role, name, created_at)
+                VALUES (1, 1, 'demo@nexetapetrol.com', ?, 'owner', 'Muhammad Naveed', datetime('now'));`,
+          args: [defaultPasswordHash]
+        });
+      }
+
+      // Super Admin Seed
+      const superAdminCountRes = await tursoClient.execute("SELECT count(*) as count FROM super_admins WHERE email = 'admin@nexetapetrol.com'");
+      const superAdminCount = (superAdminCountRes.rows[0]?.count as number) || 0;
+      if (superAdminCount === 0) {
+        const adminPassHash = await hashPassword("admin123456");
+        await tursoClient.execute({
+          sql: `INSERT OR IGNORE INTO super_admins (id, email, password_hash, name, created_at)
+                VALUES (1, 'admin@nexetapetrol.com', ?, 'Naveed Bhatti (Super Admin)', datetime('now'));`,
+          args: [adminPassHash]
+        });
+      }
+    } catch (e) {
+      console.error("Auth seeding error:", e);
+    }
 
     // Default pump settings if not exist
     try {

@@ -4,13 +4,13 @@ import { tankKhata, tanks, dailyReadings, nozzles, fuelPurchases } from "@/lib/s
 import { eq, desc, and } from "drizzle-orm";
 import { getTodayDatePK, formatDate, toStandardYMD } from "@/lib/formatters";
 import { calculateDipLitres } from "@/lib/dip-calculator";
+import { getCurrentPumpId } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const fuelType = searchParams.get("fuel_type"); // "Petrol" | "Diesel"
+    const pumpId = await getCurrentPumpId(request);
 
     const query = db
       .select({
@@ -29,16 +29,15 @@ export async function GET(request: Request) {
       })
       .from(tankKhata)
       .leftJoin(tanks, eq(tankKhata.tank_id, tanks.id))
+      .where(eq(tankKhata.pump_id, pumpId))
       .orderBy(desc(tankKhata.id));
 
     const allRecords = await query;
 
-    // Filter into Diesel and Petrol lists
     const dieselRecords = allRecords.filter((r) => r.fuel_type === "Diesel");
     const petrolRecords = allRecords.filter((r) => r.fuel_type === "Petrol" || r.fuel_type === "HiOctane");
 
-    // Fetch all tanks
-    const allTanks = await db.select().from(tanks);
+    const allTanks = await db.select().from(tanks).where(eq(tanks.pump_id, pumpId));
 
     return NextResponse.json({
       success: true,
@@ -54,6 +53,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const body = await request.json();
     const { date, tank_id, fuel_type, dip_value, dip_unit, remarks } = body;
 
@@ -67,28 +67,23 @@ export async function POST(request: Request) {
     const tId = Number(tank_id);
     const dipVal = parseFloat(dip_value);
     const unit = dip_unit || "inch";
-    const entryDate = date ? formatDate(date) : getTodayDatePK(); // DD-MM-YYYY
+    const entryDate = date ? formatDate(date) : getTodayDatePK();
     const ymdDate = toStandardYMD(entryDate);
 
-    // Fetch tank info
-    const tankList = await db.select().from(tanks).where(eq(tanks.id, tId));
+    const tankList = await db.select().from(tanks).where(and(eq(tanks.id, tId), eq(tanks.pump_id, pumpId)));
     if (tankList.length === 0) {
       return NextResponse.json({ success: false, error: "Tank not found" }, { status: 404 });
     }
     const tank = tankList[0];
     const fuel = fuel_type || tank.fuel_type;
 
-    // 1. Calculate Dip Chart Litres (auto)
     const dipLitres = await calculateDipLitres(tId, fuel, dipVal);
-    const tankStock = dipLitres; // Tank Stock from physical dip
+    const tankStock = dipLitres;
 
-    // 2. Calculate Register Stock:
-    // Formula: Register Stock = Previous Register Stock - Today's Sales + Today's Purchases
-    // Find most recent previous tank khata entry for this tank
     const prevKhataEntries = await db
       .select()
       .from(tankKhata)
-      .where(eq(tankKhata.tank_id, tId))
+      .where(and(eq(tankKhata.tank_id, tId), eq(tankKhata.pump_id, pumpId)))
       .orderBy(desc(tankKhata.id))
       .limit(1);
 
@@ -97,13 +92,12 @@ export async function POST(request: Request) {
       prevRegisterStock = prevKhataEntries[0].register_stock || prevKhataEntries[0].tank_stock;
     }
 
-    // Today's Sales for this tank from daily readings (checking both YYYY-MM-DD and DD-MM-YYYY)
-    const tankNozzles = await db.select().from(nozzles).where(eq(nozzles.tank_id, tId));
+    const tankNozzles = await db.select().from(nozzles).where(and(eq(nozzles.tank_id, tId), eq(nozzles.pump_id, pumpId)));
     const nozzleIds = tankNozzles.map((n) => n.id);
 
     let todaySalesLitres = 0;
     if (nozzleIds.length > 0) {
-      const allReadings = await db.select().from(dailyReadings);
+      const allReadings = await db.select().from(dailyReadings).where(eq(dailyReadings.pump_id, pumpId));
       for (const r of allReadings) {
         if (nozzleIds.includes(r.nozzle_id) && (r.date === entryDate || r.date === ymdDate)) {
           todaySalesLitres += r.litres_sold || 0;
@@ -111,27 +105,24 @@ export async function POST(request: Request) {
       }
     }
 
-    // Today's Purchases for this fuel type
     let todayPurchasesLitres = 0;
-    const purchases = await db.select().from(fuelPurchases);
+    const purchases = await db.select().from(fuelPurchases).where(eq(fuelPurchases.pump_id, pumpId));
     for (const p of purchases) {
       if (p.fuel_type === fuel && (p.date === entryDate || p.date === ymdDate)) {
         todayPurchasesLitres += p.qty || 0;
       }
     }
 
-    // Register Stock = Previous Register Stock - Sale + Purchase
     const calculatedRegisterStock = Math.round(
       prevRegisterStock - todaySalesLitres + todayPurchasesLitres
     );
 
-    // Gain / Loss = Tank Stock (Physical) - Register Stock (Book)
     const gainLoss = Math.round((tankStock - calculatedRegisterStock) * 100) / 100;
 
-    // Save entry in tankKhata
     const [newEntry] = await db
       .insert(tankKhata)
       .values({
+        pump_id: pumpId,
         date: entryDate,
         tank_id: tId,
         fuel_type: fuel,
@@ -145,13 +136,12 @@ export async function POST(request: Request) {
       })
       .returning();
 
-    // Update live tank current_stock to physical dip stock
     await db
       .update(tanks)
       .set({
         current_stock: tankStock,
       })
-      .where(eq(tanks.id, tId));
+      .where(and(eq(tanks.id, tId), eq(tanks.pump_id, pumpId)));
 
     return NextResponse.json({
       success: true,
@@ -165,13 +155,14 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
     if (!id) {
       return NextResponse.json({ success: false, error: "ID is required" }, { status: 400 });
     }
 
-    await db.delete(tankKhata).where(eq(tankKhata.id, Number(id)));
+    await db.delete(tankKhata).where(and(eq(tankKhata.id, Number(id)), eq(tankKhata.pump_id, pumpId)));
     return NextResponse.json({ success: true, message: "انٹری حذف کر دی گئی" });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { creditCustomers, creditSales, products } from "@/lib/schema";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, and } from "drizzle-orm";
 import { getTodayDatePK, formatDate } from "@/lib/formatters";
+import { getCurrentPumpId } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const { searchParams } = new URL(request.url);
     const customerId = searchParams.get("customer_id");
 
@@ -15,13 +17,13 @@ export async function GET(request: Request) {
       const records = await db
         .select()
         .from(creditSales)
-        .where(eq(creditSales.customer_id, Number(customerId)))
+        .where(and(eq(creditSales.customer_id, Number(customerId)), eq(creditSales.pump_id, pumpId)))
         .orderBy(desc(creditSales.id));
 
       const customer = await db
         .select()
         .from(creditCustomers)
-        .where(eq(creditCustomers.id, Number(customerId)));
+        .where(and(eq(creditCustomers.id, Number(customerId)), eq(creditCustomers.pump_id, pumpId)));
 
       return NextResponse.json({
         success: true,
@@ -47,6 +49,7 @@ export async function GET(request: Request) {
       })
       .from(creditSales)
       .leftJoin(creditCustomers, eq(creditSales.customer_id, creditCustomers.id))
+      .where(eq(creditSales.pump_id, pumpId))
       .orderBy(desc(creditSales.id))
       .limit(50);
 
@@ -58,6 +61,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const body = await request.json();
     const { customer_id, date, type, details, qty, total, is_payment, product_id } = body;
 
@@ -77,6 +81,7 @@ export async function POST(request: Request) {
     const [record] = await db
       .insert(creditSales)
       .values({
+        pump_id: pumpId,
         customer_id: Number(customer_id),
         date: targetDate,
         type: type || "Fuel",
@@ -87,14 +92,13 @@ export async function POST(request: Request) {
       })
       .returning();
 
-    // If an Udhar product sale specifies a product_id and qty > 0, deduct product stock!
     if (product_id && nQty > 0 && isPaymentFlag === 0) {
       await db
         .update(products)
         .set({
           stock_qty: sql`MAX(0, ${products.stock_qty} - ${nQty})`,
         })
-        .where(eq(products.id, Number(product_id)));
+        .where(and(eq(products.id, Number(product_id)), eq(products.pump_id, pumpId)));
     }
 
     return NextResponse.json({

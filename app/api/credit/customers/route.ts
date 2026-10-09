@@ -1,17 +1,19 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { creditCustomers, creditSales } from "@/lib/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { getTodayDatePK, toStandardYMD } from "@/lib/formatters";
+import { getCurrentPumpId } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const customers = await db.select().from(creditCustomers);
-    const allSales = await db.select().from(creditSales);
+    const pumpId = await getCurrentPumpId(request);
+    const customers = await db.select().from(creditCustomers).where(eq(creditCustomers.pump_id, pumpId));
+    const allSales = await db.select().from(creditSales).where(eq(creditSales.pump_id, pumpId));
 
-    // Calculate customer balances
+    // Calculate customer balances for this pump
     const customerLedgers = customers.map((c) => {
       const trans = allSales.filter((s) => s.customer_id === c.id);
       const totalCredit = trans
@@ -49,6 +51,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const body = await request.json();
     const { name, company, vehicle_no, phone } = body;
 
@@ -62,6 +65,7 @@ export async function POST(request: Request) {
     const [newCustomer] = await db
       .insert(creditCustomers)
       .values({
+        pump_id: pumpId,
         name,
         company: company || null,
         vehicle_no: vehicle_no || null,

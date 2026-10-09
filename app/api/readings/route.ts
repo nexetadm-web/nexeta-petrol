@@ -1,19 +1,21 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { nozzles, tanks, dailyRates, dailyReadings } from "@/lib/schema";
-import { eq, and, sql, desc, lt } from "drizzle-orm";
-import { getTodayDateString, getTodayDatePK, formatDate, toStandardYMD } from "@/lib/formatters";
+import { eq, and, sql } from "drizzle-orm";
+import { getTodayDatePK, formatDate, toStandardYMD } from "@/lib/formatters";
+import { getCurrentPumpId } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const { searchParams } = new URL(request.url);
     const dateParam = searchParams.get("date");
-    const date = dateParam ? formatDate(dateParam) : getTodayDatePK(); // Normalized DD-MM-YYYY
-    const ymdDate = toStandardYMD(date); // YYYY-MM-DD
+    const date = dateParam ? formatDate(dateParam) : getTodayDatePK();
+    const ymdDate = toStandardYMD(date);
 
-    // 1. Fetch all nozzles with tank info
+    // 1. Fetch all nozzles with tank info for this pump
     const allNozzles = await db
       .select({
         id: nozzles.id,
@@ -24,14 +26,15 @@ export async function GET(request: Request) {
         currentStock: tanks.current_stock,
       })
       .from(nozzles)
-      .leftJoin(tanks, eq(nozzles.tank_id, tanks.id));
+      .leftJoin(tanks, eq(nozzles.tank_id, tanks.id))
+      .where(eq(nozzles.pump_id, pumpId));
 
-    // 2. Fetch daily rates for this date (match both formats)
-    const allRates = await db.select().from(dailyRates);
+    // 2. Fetch daily rates for this date and pump
+    const allRates = await db.select().from(dailyRates).where(eq(dailyRates.pump_id, pumpId));
     const rate = allRates.find((r) => r.date === date || r.date === ymdDate) || null;
 
-    // 3. Fetch all readings to find previous closing accurately for every nozzle
-    const allStoredReadings = await db.select().from(dailyReadings);
+    // 3. Fetch all readings for this pump
+    const allStoredReadings = await db.select().from(dailyReadings).where(eq(dailyReadings.pump_id, pumpId));
 
     // Filter current day readings
     const currentDayReadings = allStoredReadings.filter(
@@ -42,15 +45,12 @@ export async function GET(request: Request) {
       currentMap.set(cr.nozzle_id, cr);
     }
 
-    // 4. Auto Previous Closing from yesterday / latest prior reading
-    // Find prior readings where date is earlier than current date
+    // 4. Auto Previous Closing
     const prevMap = new Map<number, number>();
     for (const nz of allNozzles) {
-      // Find readings for this nozzle with date < current date, sorted newest first
       const priorReadings = allStoredReadings
         .filter((r) => {
           if (r.nozzle_id !== nz.id) return false;
-          // Compare YMD strings
           const rYmd = toStandardYMD(r.date);
           return rYmd < ymdDate;
         })
@@ -66,12 +66,11 @@ export async function GET(request: Request) {
       }
     }
 
-    // 5. Build consolidated nozzle readings array
+    // 5. Consolidated nozzle readings
     const nozzleReadings = allNozzles.map((nz) => {
       const prevClosing = prevMap.get(nz.id) || 0;
       const existing = currentMap.get(nz.id);
 
-      // Determine rate for fuel type
       let fuelRate = 0;
       if (rate) {
         if (nz.fuelType === "Diesel") fuelRate = rate.diesel_rate;
@@ -79,7 +78,6 @@ export async function GET(request: Request) {
         else fuelRate = rate.petrol_rate;
       }
 
-      // If existing recorded reading exists, use its start reading; otherwise auto-default from prevClosing!
       const startReading = existing
         ? (existing.start_reading ?? existing.morning_reading)
         : (prevClosing > 0 ? prevClosing : 0);
@@ -124,6 +122,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const body = await request.json();
     const { date, readings } = body;
 
@@ -137,8 +136,8 @@ export async function POST(request: Request) {
     const targetDate = formatDate(date);
     const ymdDate = toStandardYMD(date);
 
-    // Fetch rate for this date
-    const allRates = await db.select().from(dailyRates);
+    // Fetch rate for this date & pump
+    const allRates = await db.select().from(dailyRates).where(eq(dailyRates.pump_id, pumpId));
     const rate = allRates.find((r) => r.date === targetDate || r.date === ymdDate);
 
     if (!rate) {
@@ -151,7 +150,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Process each reading
     for (const item of readings) {
       const { 
         nozzleId, 
@@ -169,7 +167,6 @@ export async function POST(request: Request) {
       const sTime = startTime || "08:00 AM";
       const eTime = endTime || "08:00 PM";
 
-      // Find nozzle tank & fuel type
       const nzList = await db
         .select({
           tankId: nozzles.tank_id,
@@ -178,7 +175,7 @@ export async function POST(request: Request) {
         })
         .from(nozzles)
         .leftJoin(tanks, eq(nozzles.tank_id, tanks.id))
-        .where(eq(nozzles.id, nozzleId));
+        .where(and(eq(nozzles.id, nozzleId), eq(nozzles.pump_id, pumpId)));
 
       if (nzList.length === 0) continue;
       const nz = nzList[0];
@@ -189,12 +186,12 @@ export async function POST(request: Request) {
 
       const amount = litresSold * fuelRate;
 
-      // Check existing reading (match both date formats)
       const existing = await db
         .select()
         .from(dailyReadings)
         .where(
           and(
+            eq(dailyReadings.pump_id, pumpId),
             eq(dailyReadings.nozzle_id, nozzleId),
             sql`(${dailyReadings.date} = ${targetDate} OR ${dailyReadings.date} = ${ymdDate})`
           )
@@ -222,6 +219,7 @@ export async function POST(request: Request) {
           .where(eq(dailyReadings.id, oldReading.id));
       } else {
         await db.insert(dailyReadings).values({
+          pump_id: pumpId,
           date: targetDate,
           nozzle_id: nozzleId,
           start_time: sTime,
@@ -236,20 +234,19 @@ export async function POST(request: Request) {
         });
       }
 
-      // Automatically update tank stock if deltaLitres changed
       if (deltaLitres !== 0 && nz.tankId) {
         await db
           .update(tanks)
           .set({
             current_stock: sql`MAX(0, ${tanks.current_stock} - ${deltaLitres})`,
           })
-          .where(eq(tanks.id, nz.tankId));
+          .where(and(eq(tanks.id, nz.tankId), eq(tanks.pump_id, pumpId)));
       }
     }
 
     return NextResponse.json({
       success: true,
-      message: "تمام نوزل ریڈنگز محفوظ ہو گئیں اور ٹینک اسٹاک اپ ڈیٹ ہو گیا! (Readings saved & tank stock reduced)",
+      message: "تمام نوزل ریڈنگز محفوظ ہو گئیں اور ٹینک اسٹاک اپ ڈیٹ ہو گیا!",
     });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -258,13 +255,14 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
     if (!id) {
       return NextResponse.json({ success: false, error: "Reading ID is required" }, { status: 400 });
     }
 
-    await db.delete(dailyReadings).where(eq(dailyReadings.id, Number(id)));
+    await db.delete(dailyReadings).where(and(eq(dailyReadings.id, Number(id)), eq(dailyReadings.pump_id, pumpId)));
     return NextResponse.json({ success: true, message: "ریڈنگ کامیابی سے ڈیلیٹ ہو گئی" });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

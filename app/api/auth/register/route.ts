@@ -1,0 +1,140 @@
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { pumps, users, tanks, nozzles, dailyRates, pumpSettings } from "@/lib/schema";
+import { hashPassword, signToken, SESSION_COOKIE_NAME } from "@/lib/auth";
+import { eq } from "drizzle-orm";
+import { getTodayDatePK } from "@/lib/formatters";
+
+export const dynamic = "force-dynamic";
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const { pump_name, owner_name, phone, email, password, city, cnic } = body;
+
+    if (!pump_name || !owner_name || !phone || !email || !password || !city) {
+      return NextResponse.json(
+        { success: false, error: "تمام ضروری معلومات (پمپ نام، مالک نام، فون، ای میل، پاس ورڈ، شہر) درج کریں۔" },
+        { status: 400 }
+      );
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Check if email already registered
+    const existingUser = await db.select().from(users).where(eq(users.email, cleanEmail));
+    if (existingUser.length > 0) {
+      return NextResponse.json(
+        { success: false, error: "یہ ای میل پہلے سے رجسٹرڈ ہے۔ براہ کرم لاگ ان کریں۔" },
+        { status: 409 }
+      );
+    }
+
+    const passwordHash = await hashPassword(password);
+    // 14 Days Free Trial
+    const trialEnds = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+    const nowIso = new Date().toISOString();
+
+    // 1. Create Pump Record
+    const [newPump] = await db
+      .insert(pumps)
+      .values({
+        pump_name: pump_name.trim(),
+        owner_name: owner_name.trim(),
+        phone: phone.trim(),
+        email: cleanEmail,
+        city: city.trim(),
+        cnic: cnic ? cnic.trim() : null,
+        password_hash: passwordHash,
+        subscription_status: "trial",
+        trial_ends_at: trialEnds,
+        created_at: nowIso,
+      })
+      .returning();
+
+    // 2. Create Owner User
+    const [newUser] = await db
+      .insert(users)
+      .values({
+        pump_id: newPump.id,
+        email: cleanEmail,
+        password_hash: passwordHash,
+        role: "owner",
+        name: owner_name.trim(),
+        created_at: nowIso,
+      })
+      .returning();
+
+    // 3. Auto-Provision Default Station Tanks & Nozzles for New Pump
+    try {
+      const [pTank] = await db.insert(tanks).values({
+        pump_id: newPump.id,
+        name: "Tank 1 (Super Petrol)",
+        fuel_type: "Petrol",
+        capacity: 30000,
+        current_stock: 12500,
+      }).returning();
+
+      const [dTank] = await db.insert(tanks).values({
+        pump_id: newPump.id,
+        name: "Tank 2 (High Speed Diesel)",
+        fuel_type: "Diesel",
+        capacity: 40000,
+        current_stock: 18000,
+      }).returning();
+
+      // Create 4 initial nozzles
+      await db.insert(nozzles).values([
+        { pump_id: newPump.id, name: "Nozzle 1 (Petrol)", tank_id: pTank.id },
+        { pump_id: newPump.id, name: "Nozzle 2 (Petrol)", tank_id: pTank.id },
+        { pump_id: newPump.id, name: "Nozzle 3 (Diesel)", tank_id: dTank.id },
+        { pump_id: newPump.id, name: "Nozzle 4 (Diesel)", tank_id: dTank.id },
+      ]);
+
+      // Seed initial rate for today
+      await db.insert(dailyRates).values({
+        pump_id: newPump.id,
+        date: getTodayDatePK(),
+        petrol_rate: 333,
+        diesel_rate: 323,
+        hioctane_rate: 335,
+      });
+    } catch (e) {
+      console.error("Default assets provisioning error:", e);
+    }
+
+    // 4. Generate Session Token
+    const sessionPayload = {
+      userId: newUser.id,
+      pumpId: newPump.id,
+      email: newUser.email,
+      name: newUser.name,
+      role: newUser.role as "owner",
+      pumpName: newPump.pump_name,
+      city: newPump.city,
+      subscriptionStatus: newPump.subscription_status as "trial",
+      trialEndsAt: newPump.trial_ends_at,
+    };
+
+    const token = await signToken(sessionPayload);
+
+    const response = NextResponse.json({
+      success: true,
+      message: "مبارک ہو! آپ کا پٹرول پمپ کامیابی سے رجسٹر ہو گیا ہے۔ 14 دن کا مفت ٹرائل شروع ہو چکا ہے۔",
+      user: sessionPayload,
+    });
+
+    response.cookies.set(SESSION_COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30, // 30 days
+      sameSite: "lax",
+    });
+
+    return response;
+  } catch (error: any) {
+    console.error("Register error:", error);
+    return NextResponse.json({ success: false, error: error.message || "Registration failed" }, { status: 500 });
+  }
+}

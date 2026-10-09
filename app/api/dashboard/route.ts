@@ -9,25 +9,32 @@ import {
   productSales, 
   creditSales, 
   expenses,
-  nozzles
+  nozzles,
+  pumps
 } from "@/lib/schema";
-import { eq, sql, desc } from "drizzle-orm";
-import { getTodayDateString, getTodayDatePK, formatDate, toStandardYMD } from "@/lib/formatters";
+import { eq, desc, and } from "drizzle-orm";
+import { getTodayDatePK, formatDate, toStandardYMD } from "@/lib/formatters";
+import { getCurrentPumpId } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const { searchParams } = new URL(request.url);
     const dateParam = searchParams.get("date");
     const pkDate = dateParam ? formatDate(dateParam) : getTodayDatePK();
     const ymdDate = toStandardYMD(pkDate);
 
-    // 1. Fetch Today's Daily Rates (match both date representations)
-    const allRates = await db.select().from(dailyRates);
+    // Get current pump profile
+    const pumpRows = await db.select().from(pumps).where(eq(pumps.id, pumpId));
+    const currentPump = pumpRows[0] || null;
+
+    // 1. Fetch Today's Daily Rates for this pump
+    const allRates = await db.select().from(dailyRates).where(eq(dailyRates.pump_id, pumpId));
     const todayRate = allRates.find((r) => r.date === pkDate || r.date === ymdDate) || null;
 
-    // 2. Fetch Daily Readings for the date joined with nozzles and tanks
+    // 2. Fetch Daily Readings for the date joined with nozzles and tanks for this pump
     const allReadings = await db
       .select({
         id: dailyReadings.id,
@@ -38,10 +45,12 @@ export async function GET(request: Request) {
         nozzleId: dailyReadings.nozzle_id,
         tankId: nozzles.tank_id,
         fuelType: tanks.fuel_type,
+        pumpId: dailyReadings.pump_id,
       })
       .from(dailyReadings)
       .leftJoin(nozzles, eq(dailyReadings.nozzle_id, nozzles.id))
-      .leftJoin(tanks, eq(nozzles.tank_id, tanks.id));
+      .leftJoin(tanks, eq(nozzles.tank_id, tanks.id))
+      .where(eq(dailyReadings.pump_id, pumpId));
 
     const todayReadings = allReadings.filter(
       (r) => r.date === pkDate || r.date === ymdDate
@@ -64,8 +73,8 @@ export async function GET(request: Request) {
 
     const todayFuelLitres = petrolLitres + dieselLitres + hioctaneLitres;
 
-    // 3. Fetch Product Sales for the date
-    const allPSales = await db.select().from(productSales);
+    // 3. Fetch Product Sales for the date for this pump
+    const allPSales = await db.select().from(productSales).where(eq(productSales.pump_id, pumpId));
     const todayPSales = allPSales.filter(
       (p) => p.date === pkDate || p.date === ymdDate
     );
@@ -76,8 +85,8 @@ export async function GET(request: Request) {
     // 4. Total Sale Rs = Fuel Sale + Product Sale
     const todayTotalSaleRs = todayFuelSaleRs + todayProductSaleRs;
 
-    // 5. Kul Udhar Baqi Rs (Outstanding credit sales - wasooli)
-    const allCreditRecords = await db.select().from(creditSales);
+    // 5. Kul Udhar Baqi Rs for this pump
+    const allCreditRecords = await db.select().from(creditSales).where(eq(creditSales.pump_id, pumpId));
     const totalCreditGiven = allCreditRecords
       .filter((c) => c.is_payment === 0)
       .reduce((acc, c) => acc + (c.total || 0), 0);
@@ -86,24 +95,26 @@ export async function GET(request: Request) {
       .reduce((acc, c) => acc + (c.total || 0), 0);
     const totalCreditRemainingRs = Math.max(0, totalCreditGiven - totalPaymentsReceived);
 
-    // 6. Aaj Ka Kharcha (Today's Expenses)
-    const allExpenses = await db.select().from(expenses);
+    // 6. Aaj Ka Kharcha (Today's Expenses for this pump)
+    const allExpenses = await db.select().from(expenses).where(eq(expenses.pump_id, pumpId));
     const todayExpenses = allExpenses.filter(
       (e) => e.date === pkDate || e.date === ymdDate
     );
     const todayExpenseRs = todayExpenses.reduce((acc, e) => acc + (e.amount || 0), 0);
 
-    // 7. Calculate Precise Fuel Profit:
-    // Check latest purchase cost per fuel type to determine actual dealer margin
-    const purchases = await db.select().from(fuelPurchases).orderBy(desc(fuelPurchases.id));
+    // 7. Calculate Precise Fuel Profit
+    const purchases = await db
+      .select()
+      .from(fuelPurchases)
+      .where(eq(fuelPurchases.pump_id, pumpId))
+      .orderBy(desc(fuelPurchases.id));
     const latestPetrolPurchase = purchases.find((p) => p.fuel_type === "Petrol");
     const latestDieselPurchase = purchases.find((p) => p.fuel_type === "Diesel");
     const latestHiOctanePurchase = purchases.find((p) => p.fuel_type === "HiOctane");
 
-    // Dealer margins per litre (Actual or standard OM&C margin)
     const petrolMargin = (todayRate && latestPetrolPurchase && todayRate.petrol_rate > latestPetrolPurchase.rate)
       ? (todayRate.petrol_rate - latestPetrolPurchase.rate)
-      : 10.50; // Standard dealer margin ~Rs. 10.50/L
+      : 10.50;
 
     const dieselMargin = (todayRate && latestDieselPurchase && todayRate.diesel_rate > latestDieselPurchase.rate)
       ? (todayRate.diesel_rate - latestDieselPurchase.rate)
@@ -119,39 +130,55 @@ export async function GET(request: Request) {
       hioctaneLitres * hioctaneMargin
     );
 
-    // Net Profit Formula:
-    // Net Profit = (Fuel Margin Profit + Product Profit) - Expenses
-    const todayEstimatedNetProfitRs = estimatedFuelProfit + todayProductProfitRs - todayExpenseRs;
+    // 8. Net Profit = Fuel Profit + Product Profit - Expenses
+    const netProfitRs = estimatedFuelProfit + todayProductProfitRs - todayExpenseRs;
 
-    // 8. Tanks Stock
-    const allTanks = await db.select().from(tanks);
+    // 9. Fetch Tanks for this pump
+    const allTanks = await db.select().from(tanks).where(eq(tanks.pump_id, pumpId));
+    const tanksFormatted = allTanks.map((t) => {
+      const fillPercentage = t.capacity > 0 ? Math.min(100, Math.round((t.current_stock / t.capacity) * 100)) : 0;
+      return {
+        id: t.id,
+        name: t.name,
+        fuel_type: t.fuel_type as any,
+        capacity: t.capacity,
+        current_stock: t.current_stock,
+        fill_percentage: fillPercentage,
+      };
+    });
 
     return NextResponse.json({
       success: true,
+      pump: currentPump ? {
+        id: currentPump.id,
+        name: currentPump.pump_name,
+        owner: currentPump.owner_name,
+        city: currentPump.city,
+        subscriptionStatus: currentPump.subscription_status,
+        trialEndsAt: currentPump.trial_ends_at,
+      } : null,
       date: pkDate,
-      todayRate,
-      isRateSetToday: !!todayRate,
+      rates: todayRate,
       metrics: {
-        todayFuelLitres,
-        todayFuelSaleRs,
-        todayProductSaleRs,
-        todayTotalSaleRs,
-        totalCreditRemainingRs,
-        todayExpenseRs,
-        todayEstimatedNetProfitRs,
-        todayProductProfitRs,
-        estimatedFuelProfit,
-        petrolLitres,
-        dieselLitres,
-        hioctaneLitres,
+        totalFuelSaleLitres: todayFuelLitres,
+        fuelRevenueRs: todayFuelSaleRs,
+        goodsRevenueRs: todayProductSaleRs,
+        totalRevenueRs: todayTotalSaleRs,
+        creditOutstandingRs: totalCreditRemainingRs,
+        totalExpensesRs: todayExpenseRs,
+        netProfitRs: netProfitRs,
+        estimatedFuelProfitRs: estimatedFuelProfit,
+        productProfitRs: todayProductProfitRs,
+        fuelBreakdown: {
+          petrolLitres,
+          dieselLitres,
+          hioctaneLitres,
+        },
+        tanks: tanksFormatted,
       },
-      tanks: allTanks,
     });
   } catch (error: any) {
-    console.error("Dashboard API error:", error);
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
-    );
+    console.error("Dashboard error:", error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

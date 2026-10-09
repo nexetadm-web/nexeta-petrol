@@ -9,21 +9,22 @@ import {
   products, 
   creditSales, 
   creditCustomers, 
-  expenses,
-  fuelPurchases
+  expenses 
 } from "@/lib/schema";
-import { eq, like, desc } from "drizzle-orm";
+import { eq, like, and } from "drizzle-orm";
 import { getTodayDateString } from "@/lib/formatters";
+import { getCurrentPumpId } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const { searchParams } = new URL(request.url);
     const date = searchParams.get("date") || getTodayDateString();
     const month = searchParams.get("month"); // e.g. "2026-10"
 
-    // If month is requested, compile monthly report
+    // If month is requested, compile monthly report for this pump
     if (month) {
       const monthPattern = `${month}-%`;
 
@@ -34,7 +35,7 @@ export async function GET(request: Request) {
           amount: dailyReadings.amount,
         })
         .from(dailyReadings)
-        .where(like(dailyReadings.date, monthPattern));
+        .where(and(like(dailyReadings.date, monthPattern), eq(dailyReadings.pump_id, pumpId)));
 
       const mProducts = await db
         .select({
@@ -43,7 +44,7 @@ export async function GET(request: Request) {
           profit: productSales.profit,
         })
         .from(productSales)
-        .where(like(productSales.date, monthPattern));
+        .where(and(like(productSales.date, monthPattern), eq(productSales.pump_id, pumpId)));
 
       const mExpenses = await db
         .select({
@@ -51,7 +52,7 @@ export async function GET(request: Request) {
           amount: expenses.amount,
         })
         .from(expenses)
-        .where(like(expenses.date, monthPattern));
+        .where(and(like(expenses.date, monthPattern), eq(expenses.pump_id, pumpId)));
 
       const mCredits = await db
         .select({
@@ -60,7 +61,7 @@ export async function GET(request: Request) {
           isPayment: creditSales.is_payment,
         })
         .from(creditSales)
-        .where(like(creditSales.date, monthPattern));
+        .where(and(like(creditSales.date, monthPattern), eq(creditSales.pump_id, pumpId)));
 
       // Group by day
       const dailyMap = new Map<string, any>();
@@ -184,7 +185,7 @@ export async function GET(request: Request) {
     }
 
     // Single Date Detailed Pump Report
-    const ratesResult = await db.select().from(dailyRates).where(eq(dailyRates.date, date));
+    const ratesResult = await db.select().from(dailyRates).where(and(eq(dailyRates.date, date), eq(dailyRates.pump_id, pumpId)));
     const rate = ratesResult[0] || null;
 
     const readings = await db
@@ -208,7 +209,7 @@ export async function GET(request: Request) {
       .from(dailyReadings)
       .leftJoin(nozzles, eq(dailyReadings.nozzle_id, nozzles.id))
       .leftJoin(tanks, eq(nozzles.tank_id, tanks.id))
-      .where(eq(dailyReadings.date, date));
+      .where(and(eq(dailyReadings.date, date), eq(dailyReadings.pump_id, pumpId)));
 
     let petrolLitres = 0;
     let dieselLitres = 0;
@@ -235,13 +236,13 @@ export async function GET(request: Request) {
       })
       .from(productSales)
       .leftJoin(products, eq(productSales.product_id, products.id))
-      .where(eq(productSales.date, date));
+      .where(and(eq(productSales.date, date), eq(productSales.pump_id, pumpId)));
 
     const totalProductSales = pSales.reduce((acc, p) => acc + (p.total || 0), 0);
     const totalProductProfit = pSales.reduce((acc, p) => acc + (p.profit || 0), 0);
 
     // Expenses for date
-    const dayExpenses = await db.select().from(expenses).where(eq(expenses.date, date));
+    const dayExpenses = await db.select().from(expenses).where(and(eq(expenses.date, date), eq(expenses.pump_id, pumpId)));
     const totalExpenses = dayExpenses.reduce((acc, e) => acc + (e.amount || 0), 0);
 
     // Credit transactions for date
@@ -257,7 +258,7 @@ export async function GET(request: Request) {
       })
       .from(creditSales)
       .leftJoin(creditCustomers, eq(creditSales.customer_id, creditCustomers.id))
-      .where(eq(creditSales.date, date));
+      .where(and(eq(creditSales.date, date), eq(creditSales.pump_id, pumpId)));
 
     const creditGiven = dayCredit.filter((c) => c.isPayment === 0).reduce((acc, c) => acc + (c.total || 0), 0);
     const cashWasooli = dayCredit.filter((c) => c.isPayment === 1).reduce((acc, c) => acc + (c.total || 0), 0);
@@ -267,7 +268,7 @@ export async function GET(request: Request) {
     const netProfit = fuelProfit + totalProductProfit - totalExpenses;
 
     // Tanks Status
-    const allTanks = await db.select().from(tanks);
+    const allTanks = await db.select().from(tanks).where(eq(tanks.pump_id, pumpId));
 
     return NextResponse.json({
       success: true,

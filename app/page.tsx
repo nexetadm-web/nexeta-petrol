@@ -1,500 +1,297 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { 
   Fuel, 
   Coins, 
-  Receipt, 
   BookOpen, 
+  Receipt, 
   TrendingUp, 
-  Droplet, 
-  ArrowUpRight, 
-  Gauge, 
-  Truck, 
-  Package, 
-  RefreshCw,
-  Sparkles,
-  Users,
-  Droplets,
-  Calendar,
-  Wallet,
-  AlertTriangle
+  Droplets, 
+  ShieldCheck, 
+  CheckCircle2, 
+  ArrowRight, 
+  Sparkles, 
+  MessageCircle, 
+  Clock, 
+  Users, 
+  Smartphone,
+  Server,
+  Zap,
+  PhoneCall
 } from "lucide-react";
-import { RateBanner } from "@/components/RateBanner";
-import { formatRs, formatLitres, getTodayDatePK, formatDate } from "@/lib/formatters";
-import { Tank, DailyRate } from "@/lib/types";
 
-export default function DashboardPage() {
-  const [loading, setLoading] = useState(true);
-  const [todayDateStr, setTodayDateStr] = useState("");
-  const [todayRate, setTodayRate] = useState<DailyRate | null>(null);
-  const [lowStockThreshold, setLowStockThreshold] = useState<number>(20);
-  const [metrics, setMetrics] = useState({
-    todayFuelLitres: 0,
-    todayFuelSaleRs: 0,
-    todayProductSaleRs: 0,
-    todayTotalSaleRs: 0,
-    totalCreditRemainingRs: 0,
-    todayExpenseRs: 0,
-    todayEstimatedNetProfitRs: 0,
-    todayProductProfitRs: 0,
-    estimatedFuelProfit: 0,
-  });
-  const [tanks, setTanks] = useState<Tank[]>([]);
-
-  const fetchDashboardData = async () => {
-    try {
-      const today = getTodayDatePK(); // DD-MM-YYYY
-      setTodayDateStr(today);
-      const [resDash, resSettings] = await Promise.all([
-        fetch(`/api/dashboard?date=${today}`),
-        fetch("/api/settings"),
-      ]);
-
-      const data = await resDash.json();
-      const dataSettings = await resSettings.json();
-
-      if (dataSettings.settings?.low_stock_threshold) {
-        setLowStockThreshold(Number(dataSettings.settings.low_stock_threshold) || 20);
-      }
-
-      if (data.success) {
-        setMetrics(data.metrics);
-        setTanks(data.tanks || []);
-        setTodayRate(data.todayRate || null);
-      }
-    } catch (err) {
-      console.error("Dashboard fetch error:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  // Calculate tanks with low stock (< threshold %)
-  const lowStockTanks = tanks.filter((t) => {
-    if (!t.capacity || t.capacity <= 0) return false;
-    const pct = (t.current_stock / t.capacity) * 100;
-    return pct < lowStockThreshold;
-  });
-
+export default function SaaSMarketingLandingPage() {
   return (
-    <div className="space-y-6 pb-12">
-      {/* Page Title & Quick Refresh */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 flex items-center gap-2">
-            <span>ڈیش بورڈ</span>
-            <span className="text-slate-400 font-normal text-xl sm:text-2xl">| Main Dashboard</span>
+    <div className="min-h-screen bg-slate-50 text-slate-800 selection:bg-indigo-600 selection:text-white">
+      {/* Top Announcement Bar */}
+      <div className="bg-gradient-to-r from-indigo-700 via-purple-700 to-indigo-800 text-white text-xs py-2 px-4 text-center font-bold shadow-xs">
+        <span>🇵🇰 پاکستان بھر کے 100+ پٹرول پمپس کے لیے قابل اعتماد SaaS سسٹم — 14 دن کا مفت ٹرائل حاصل کریں!</span>
+      </div>
+
+      {/* Hero Section */}
+      <section className="relative overflow-hidden pt-12 pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+        <div className="text-center max-w-3xl mx-auto space-y-6">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-100 text-indigo-800 text-xs font-black shadow-xs border border-indigo-200">
+            <Sparkles className="w-4 h-4 text-indigo-600" />
+            <span>نیکسیٹا پیٹرول پمپ مینیجر • Nexeta Petrol Pump SaaS</span>
+          </div>
+
+          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-slate-900 leading-tight">
+            اپنے پٹرول پمپ کا پورا حساب کتاب اب <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600">انگلیوں پر خودکار</span> کریں
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
-            Nexeta Petrol Pump Automation • ریئل ٹائم مانیٹرنگ اور خودکار حساب کتاب • تاریخ: {todayDateStr || getTodayDatePK()}
+
+          <p className="text-sm sm:text-lg text-slate-600 font-medium max-w-2xl mx-auto leading-relaxed">
+            روزانہ نوزل میٹر ریڈنگ، ٹینک فزیکل ڈپ کھاتہ، ادھار پارٹی لیجر بمعہ واٹس ایپ ریمائنڈرز، شفٹ کیش کلوزنگ اور ملازمین کی ڈیوٹی — سب کچھ ایک جگہ۔
+          </p>
+
+          {/* Call to Actions */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
+            <Link
+              href="/register"
+              className="w-full sm:w-auto px-7 py-4 rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 hover:from-indigo-500 hover:to-purple-600 text-white font-extrabold text-sm shadow-xl shadow-indigo-600/25 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+            >
+              <span>14 دن کا مفت ٹرائل شروع کریں (Register Station)</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+
+            <Link
+              href="/login?demo=true"
+              className="w-full sm:w-auto px-7 py-4 rounded-2xl bg-white hover:bg-slate-100 text-slate-900 font-extrabold text-sm shadow-md border border-slate-300 transition-all hover:scale-102 active:scale-95 flex items-center justify-center gap-2"
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>🎮 ایک کلک لائیو ڈیمو دیکھیں (Live Demo)</span>
+            </Link>
+
+            <Link
+              href="/login"
+              className="w-full sm:w-auto px-5 py-4 rounded-2xl text-indigo-600 hover:text-indigo-800 font-bold text-sm transition-colors text-center"
+            >
+              لاگ ان (Sign In)
+            </Link>
+          </div>
+
+          <div className="flex items-center justify-center gap-6 text-xs text-slate-500 font-semibold pt-2">
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              14 دن مفت
+            </span>
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              کوئی کریڈٹ کارڈ درکار نہیں
+            </span>
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              فوری ایکٹیویشن
+            </span>
+          </div>
+        </div>
+
+        {/* Dashboard Preview Banner */}
+        <div className="mt-12 rounded-3xl p-3 bg-gradient-to-b from-indigo-500/20 via-purple-500/10 to-transparent border border-slate-200/80 shadow-2xl max-w-5xl mx-auto">
+          <div className="rounded-2xl overflow-hidden border border-slate-300 shadow-lg bg-white relative">
+            <img
+              src="/dashboard-screenshot.jpg"
+              alt="Nexeta Petrol Dashboard Preview"
+              className="w-full h-auto object-cover"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* 6 Cards Architecture Section */}
+      <section className="py-16 bg-white border-y border-slate-200 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto space-y-12">
+          <div className="text-center max-w-2xl mx-auto space-y-2">
+            <span className="text-xs font-black uppercase tracking-wider text-indigo-600">
+              6 CARDS ARCHITECTURE
+            </span>
+            <h2 className="text-2xl sm:text-4xl font-black text-slate-900">
+              مکمل شفافیت اور 6 کارڈز کا لائیو کنٹرول سسٹم
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-600 font-medium">
+              پٹرول پمپ کے ہر قطرے اور ہر روپے کا خودکار ریکارڈ روزانہ کی بنیاد پر
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="p-6 rounded-2xl bg-emerald-50/70 border-l-4 border-l-emerald-500 border border-emerald-200 shadow-sm space-y-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-200 text-emerald-700 flex items-center justify-center font-bold">
+                <Fuel className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-black text-emerald-950">1. فیول فروخت (Nozzle Readings)</h3>
+              <p className="text-xs text-emerald-900/80 leading-relaxed font-medium">
+                24 گھنٹے ٹائم بیسڈ یا صبح/شام نوزل میٹر ریڈنگز۔ پٹرول، ڈیزل اور ہائی اوکٹین کی سیل اور لٹرز خودکار طور پر رجسٹر ہوتے ہیں۔
+              </p>
+            </div>
+
+            <div className="p-6 rounded-2xl bg-blue-50/70 border-l-4 border-l-indigo-500 border border-indigo-200 shadow-sm space-y-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-200 text-indigo-700 flex items-center justify-center font-bold">
+                <Coins className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-black text-indigo-950">2. کل ریونیو (Fuel + Goods)</h3>
+              <p className="text-xs text-indigo-900/80 leading-relaxed font-medium">
+                فیول سیل کے ساتھ موبل آئل، فلٹرز اور دیگر سامان کی فروخت کو ملا کر روزانہ کی مجموعی آمدنی کا مکمل حساب کتاب۔
+              </p>
+            </div>
+
+            <div className="p-6 rounded-2xl bg-amber-50/70 border-l-4 border-l-amber-500 border border-amber-200 shadow-sm space-y-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-200 text-amber-700 flex items-center justify-center font-bold">
+                <BookOpen className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-black text-amber-950">3. ادھار کھاتہ اور واٹس ایپ</h3>
+              <p className="text-xs text-amber-900/80 leading-relaxed font-medium">
+                ٹرانسپورٹ کمپنیوں، گاڑیوں اور کسانوں کا ادھار لیجر۔ ایک کلک پر بقایا رقم کا واٹس ایپ بل اور میسج ریمائنڈر۔
+              </p>
+            </div>
+
+            <div className="p-6 rounded-2xl bg-rose-50/70 border-l-4 border-l-rose-500 border border-rose-200 shadow-sm space-y-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-200 text-rose-700 flex items-center justify-center font-bold">
+                <Receipt className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-black text-rose-950">4. روزانہ پمپ اخراجات (Kharcha)</h3>
+              <p className="text-xs text-rose-900/80 leading-relaxed font-medium">
+                بجلی کے بل، جنریٹر کا ڈیزل، عملے کا کھانا چائے، اور مینٹیننس کا الگ الگ ریکارڈ تاکہ کوئی خرچہ غائب نہ ہو۔
+              </p>
+            </div>
+
+            <div className="p-6 rounded-2xl bg-purple-50/70 border-l-4 border-l-purple-500 border border-purple-200 shadow-sm space-y-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-200 text-purple-700 flex items-center justify-center font-bold">
+                <TrendingUp className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-black text-purple-950">5. خالص منافع (Net Profit)</h3>
+              <p className="text-xs text-purple-900/80 leading-relaxed font-medium">
+                ڈیلر مارجن فی لٹر، سامان کی فروخت کا نفع منفی اخراجات۔ پمپ مالک کو معلوم ہوتا ہے کہ آج خالص کتنی بچت ہوئی۔
+              </p>
+            </div>
+
+            <div className="p-6 rounded-2xl bg-cyan-50/70 border-l-4 border-l-cyan-500 border border-cyan-200 shadow-sm space-y-3">
+              <div className="w-10 h-10 rounded-xl bg-cyan-200 text-cyan-700 flex items-center justify-center font-bold">
+                <Droplets className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-black text-cyan-950">6. لائیو ٹینک اسٹاک و ڈپ کیلیبریشن</h3>
+              <p className="text-xs text-cyan-900/80 leading-relaxed font-medium">
+                ڈپ پیمائش سے لٹرز خودکار کیلیبریشن۔ ٹینک اسٹاک بنام رجسٹر اسٹاک اور نفع/کمی (Gain/Loss) کا خودکار آڈٹ۔
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing Section */}
+      <section className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+        <div className="text-center max-w-2xl mx-auto space-y-3 mb-12">
+          <span className="text-xs font-black uppercase tracking-wider text-indigo-600">
+            SIMPLE AFFORDABLE PRICING
+          </span>
+          <h2 className="text-3xl sm:text-4xl font-black text-slate-900">
+            ہر پٹرول پمپ کے لیے آسان اور شفاف قیمت
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-600 font-medium">
+            کوئی خفیہ چارجز نہیں، کوئی سیٹ اپ فیس نہیں — صرف کام کا بہترین سافٹ ویئر
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            setLoading(true);
-            fetchDashboardData();
-          }}
-          disabled={loading}
-          className="self-start sm:self-auto flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:text-indigo-600 hover:border-indigo-300 shadow-sm transition-all disabled:opacity-50"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-indigo-600" : ""}`} />
-          <span>ریفریش (Refresh)</span>
-        </button>
-      </div>
+        <div className="max-w-md mx-auto rounded-3xl bg-white border-2 border-indigo-500 shadow-2xl overflow-hidden p-8 relative">
+          <div className="absolute top-0 right-0 bg-indigo-600 text-white text-[10px] font-black uppercase px-4 py-1.5 rounded-bl-xl tracking-wider">
+            Most Popular
+          </div>
 
-      {/* TOP LOW STOCK ALERT BANNERS (Red Alert as requested) */}
-      {lowStockTanks.length > 0 && (
-        <div className="space-y-3">
-          {lowStockTanks.map((tank) => {
-            const pct = Math.round((tank.current_stock / tank.capacity) * 100);
-            return (
-              <div
-                key={tank.id}
-                className="p-4 sm:p-5 rounded-2xl bg-red-50 border-2 border-red-500 text-red-950 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all"
+          <div className="space-y-4">
+            <h3 className="text-xl font-black text-slate-900">Nexeta Station SaaS Plan</h3>
+            <p className="text-xs text-slate-500 font-medium">
+              مکمل آٹومیشن پیکیج ایک پٹرول پمپ اسٹیشن کے لیے
+            </p>
+
+            <div className="flex items-baseline gap-2 pt-2">
+              <span className="text-4xl sm:text-5xl font-black text-indigo-900 font-mono">Rs. 3,000</span>
+              <span className="text-sm text-slate-500 font-bold">/ ماہانہ (Per Month)</span>
+            </div>
+
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-600" />
+              <span>پہلے 14 دن مکمل مفت ٹرائل (14 Days Free Trial)</span>
+            </div>
+
+            <div className="space-y-3 pt-4 border-t border-slate-100 text-xs font-medium text-slate-700">
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <span>لامحدود نوزلز اور ٹینکس (Unlimited Nozzles & Tanks)</span>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <span>24-Hour ٹائم بیسڈ ریڈنگز اور شفٹ کیش کلوزنگ</span>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <span>ادھار پارٹی کھاتہ اور ایک کلک واٹس ایپ ریمائنڈرز</span>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <span>روزانہ ٹینک فزیکل ڈپ اور کیلیبریشن چارٹ (Gain/Loss)</span>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <span>ملازمین ڈیوٹی روسٹر، تنخواہیں اور حاضری</span>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <span>پی ڈی ایف آڈٹ رپورٹس اور کیش پرنٹ رسیدیں</span>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <span>بینک گریڈ کلاؤڈ ڈیٹا سیکیورٹی (Turso LibSQL)</span>
+              </div>
+            </div>
+
+            <div className="pt-6">
+              <Link
+                href="/register"
+                className="w-full py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 transition-all hover:scale-102"
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-2xl bg-red-200 text-red-800 flex items-center justify-center font-black text-xl shrink-0 shadow-xs animate-bounce">
-                    ⚠️
-                  </div>
-                  <div>
-                    <div className="font-black text-sm sm:text-base text-red-900 flex items-center gap-2 flex-wrap">
-                      <span>الرٹ:</span>
-                      <span className="underline decoration-red-400 decoration-2">{tank.name}</span>
-                      <span>میں صرف</span>
-                      <span className="font-mono font-black text-red-950 text-base">{formatLitres(tank.current_stock)}</span>
-                      <span>باقی ({pct}%)، فوری لاری / ٹینکر آرڈر کریں!</span>
-                    </div>
-                    <div className="text-xs text-red-700 font-medium mt-1">
-                      ٹینک کی کل گنجائش {formatLitres(tank.capacity)} ہے اور موجودہ اسٹاک مقررہ حد ({lowStockThreshold}%) سے خطرناک حد تک نیچے ہے۔
-                    </div>
-                  </div>
-                </div>
-
-                <Link
-                  href="/purchases"
-                  className="shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black text-xs shadow-md transition-all self-start sm:self-auto hover:scale-102"
-                >
-                  <Truck className="w-4 h-4" />
-                  <span>ٹینکر خریداری درج کریں (Add Tanker) →</span>
-                </Link>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* TOP BANNER 'Aaj Ka Rate Set Karain' with Warning if not set */}
-      <RateBanner
-        initialRate={todayRate}
-        todayDateStr={todayDateStr || getTodayDatePK()}
-        onRatesUpdated={fetchDashboardData}
-      />
-
-      {/* 6 COLORFUL DASHBOARD CARDS (School SaaS Style) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {/* CARD 1: Aaj Ki Fuel Sale Litre - EMERALD GRADIENT */}
-        <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-teal-100 rounded-2xl p-6 border-l-4 border-emerald-500 border border-emerald-200/70 shadow-lg hover:shadow-xl transition-all group">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-200 text-emerald-800 flex items-center justify-center shadow-sm">
-                <Fuel className="w-6 h-6" />
-              </div>
-              <div>
-                <span className="text-[11px] font-black uppercase tracking-wider text-emerald-800 block">
-                  Card 1 • فیول فروخت
-                </span>
-                <span className="text-xs text-emerald-900/70 font-semibold">Fuel Sale (Litres)</span>
-              </div>
+                <span>ابھی رجسٹر کریں (Start Free Trial)</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
             </div>
-            <span className="text-[11px] font-black px-2.5 py-1 rounded-full bg-white/90 border border-emerald-300 text-emerald-800 shadow-sm">
-              آج کا دن
-            </span>
-          </div>
-
-          <div className="mt-4">
-            <div className="text-3xl font-black text-emerald-950 font-mono tracking-tight">
-              {formatLitres(metrics.todayFuelLitres)}
-            </div>
-            <div className="text-xs text-emerald-900 mt-2 flex items-center gap-1 font-bold">
-              <span>آمدنی:</span>
-              <span className="text-emerald-800 font-extrabold font-mono text-sm">{formatRs(metrics.todayFuelSaleRs)}</span>
-            </div>
-          </div>
-
-          <div className="mt-4 pt-3 border-t border-emerald-200/60 flex items-center justify-between text-xs">
-            <Link href="/readings" className="text-emerald-800 hover:text-emerald-950 flex items-center gap-1 font-bold">
-              <span>نوزل میٹر ریڈنگ دیکھیں</span>
-              <ArrowUpRight className="w-4 h-4" />
-            </Link>
           </div>
         </div>
+      </section>
 
-        {/* CARD 2: Aaj Ki Total Sale Rs - BLUE TO INDIGO GRADIENT */}
-        <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-indigo-100 rounded-2xl p-6 border-l-4 border-blue-500 border border-blue-200/70 shadow-lg hover:shadow-xl transition-all group">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-blue-200 text-blue-800 flex items-center justify-center shadow-sm">
-                <Coins className="w-6 h-6" />
-              </div>
-              <div>
-                <span className="text-[11px] font-black uppercase tracking-wider text-blue-800 block">
-                  Card 2 • کل فروخت کیش
-                </span>
-                <span className="text-xs text-blue-900/70 font-semibold">Total Revenue (Rs.)</span>
-              </div>
-            </div>
-            <span className="text-[11px] font-black px-2.5 py-1 rounded-full bg-white/90 border border-blue-300 text-blue-800 shadow-sm">
-              Fuel + Goods
+      {/* Footer */}
+      <footer className="bg-slate-900 text-slate-400 py-12 px-4 sm:px-6 lg:px-8 border-t border-slate-800 text-xs">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-3">
+            <span className="p-2 rounded-xl bg-indigo-600 text-white font-black text-base">
+              N
             </span>
-          </div>
-
-          <div className="mt-4">
-            <div className="text-3xl font-black text-blue-950 font-mono tracking-tight">
-              {formatRs(metrics.todayTotalSaleRs)}
-            </div>
-            <div className="text-xs text-blue-900 mt-2 flex items-center justify-between font-bold">
-              <span>تیل: {formatRs(metrics.todayFuelSaleRs)}</span>
-              <span>سامان: {formatRs(metrics.todayProductSaleRs)}</span>
+            <div>
+              <div className="text-white font-black text-base">NEXETA PETROL PUMP SAAS</div>
+              <div className="text-[11px] text-slate-500">Automated Fuel Station Cloud Platform • Pakistan</div>
             </div>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-blue-200/60 flex items-center justify-between text-xs">
-            <Link href="/reports" className="text-blue-800 hover:text-blue-950 flex items-center gap-1 font-bold">
-              <span>مکمل رپورٹ دیکھیں</span>
-              <ArrowUpRight className="w-4 h-4" />
-            </Link>
-          </div>
-        </div>
-
-        {/* CARD 3: Kul Udhar Baqi Rs - ORANGE TO AMBER GRADIENT */}
-        <div className="bg-gradient-to-br from-orange-50 via-amber-50 to-amber-100 rounded-2xl p-6 border-l-4 border-amber-500 border border-amber-200/70 shadow-lg hover:shadow-xl transition-all group">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-amber-200 text-amber-800 flex items-center justify-center shadow-sm">
-                <BookOpen className="w-6 h-6" />
-              </div>
-              <div>
-                <span className="text-[11px] font-black uppercase tracking-wider text-amber-800 block">
-                  Card 3 • کل ادھار بقایا
-                </span>
-                <span className="text-xs text-amber-900/70 font-semibold">Credit Outstanding</span>
-              </div>
-            </div>
-            <span className="text-[11px] font-black px-2.5 py-1 rounded-full bg-white/90 border border-amber-300 text-amber-800 shadow-sm">
-              واجب الادا
-            </span>
-          </div>
-
-          <div className="mt-4">
-            <div className="text-3xl font-black text-amber-950 font-mono tracking-tight">
-              {formatRs(metrics.totalCreditRemainingRs)}
-            </div>
-            <div className="text-xs text-amber-900 mt-2 font-bold">
-              مارکیٹ سے کسٹمرز سے وصول طلب رقم
-            </div>
-          </div>
-
-          <div className="mt-4 pt-3 border-t border-amber-200/60 flex items-center justify-between text-xs">
-            <Link href="/khata" className="text-amber-800 hover:text-amber-950 flex items-center gap-1 font-bold">
-              <span>ادھار کھاتہ اور واٹس ایپ بل</span>
-              <ArrowUpRight className="w-4 h-4" />
-            </Link>
-          </div>
-        </div>
-
-        {/* CARD 4: Aaj Ka Kharcha Rs - RED TO PINK GRADIENT */}
-        <div className="bg-gradient-to-br from-rose-50 via-red-50 to-pink-100 rounded-2xl p-6 border-l-4 border-rose-500 border border-rose-200/70 shadow-lg hover:shadow-xl transition-all group">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-rose-200 text-rose-800 flex items-center justify-center shadow-sm">
-                <Receipt className="w-6 h-6" />
-              </div>
-              <div>
-                <span className="text-[11px] font-black uppercase tracking-wider text-rose-800 block">
-                  Card 4 • روزانہ خرچہ
-                </span>
-                <span className="text-xs text-rose-900/70 font-semibold">Expenses (Rs.)</span>
-              </div>
-            </div>
-            <span className="text-[11px] font-black px-2.5 py-1 rounded-full bg-white/90 border border-rose-300 text-rose-800 shadow-sm">
-              اخراجات
-            </span>
-          </div>
-
-          <div className="mt-4">
-            <div className="text-3xl font-black text-rose-950 font-mono tracking-tight">
-              {formatRs(metrics.todayExpenseRs)}
-            </div>
-            <div className="text-xs text-rose-900 mt-2 font-bold">
-              بجلی، تنخواہ اور پمپ کے دیگر اخراجات
-            </div>
-          </div>
-
-          <div className="mt-4 pt-3 border-t border-rose-200/60 flex items-center justify-between text-xs">
-            <Link href="/expenses" className="text-rose-800 hover:text-rose-950 flex items-center gap-1 font-bold">
-              <span>نیا خرچہ شامل کریں</span>
-              <ArrowUpRight className="w-4 h-4" />
-            </Link>
-          </div>
-        </div>
-
-        {/* CARD 5: Aaj Ka Net Profit Rs - PURPLE TO VIOLET GRADIENT */}
-        <div className="bg-gradient-to-br from-purple-50 via-violet-50 to-violet-100 rounded-2xl p-6 border-l-4 border-purple-500 border border-purple-200/70 shadow-lg hover:shadow-xl transition-all group">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-purple-200 text-purple-800 flex items-center justify-center shadow-sm">
-                <TrendingUp className="w-6 h-6" />
-              </div>
-              <div>
-                <span className="text-[11px] font-black uppercase tracking-wider text-purple-800 block">
-                  Card 5 • خالص منافع
-                </span>
-                <span className="text-xs text-purple-900/70 font-semibold">Estimated Net Profit</span>
-              </div>
-            </div>
-            <span className="text-[11px] font-black px-2.5 py-1 rounded-full bg-white/90 border border-purple-300 text-purple-800 shadow-sm">
-              Net Profit
-            </span>
-          </div>
-
-          <div className="mt-4">
-            <div
-              className={`text-3xl font-black font-mono tracking-tight ${
-                metrics.todayEstimatedNetProfitRs >= 0 ? "text-purple-950" : "text-rose-950"
-              }`}
+          <div className="flex items-center gap-6 text-xs font-semibold">
+            <Link href="/login" className="hover:text-white transition-colors">لاگ ان</Link>
+            <Link href="/register" className="hover:text-white transition-colors">رجسٹر کریں</Link>
+            <Link href="/super-admin/login" className="hover:text-amber-400 transition-colors">سوپر ایڈمن پورٹل</Link>
+            <a
+              href="https://wa.me/923400072030"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-emerald-400 hover:text-emerald-300 flex items-center gap-1.5"
             >
-              {formatRs(metrics.todayEstimatedNetProfitRs)}
-            </div>
-            <div className="text-xs text-purple-900 mt-2 flex items-center justify-between font-bold">
-              <span>تیل مارجن: {formatRs(metrics.estimatedFuelProfit)}</span>
-              <span>سامان نفع: {formatRs(metrics.todayProductProfitRs)}</span>
-            </div>
-          </div>
-
-          <div className="mt-4 pt-3 border-t border-purple-200/60 flex items-center justify-between text-xs">
-            <Link href="/reports" className="text-purple-800 hover:text-purple-950 flex items-center gap-1 font-bold">
-              <span>مکمل نفع و نقصان دیکھیں</span>
-              <ArrowUpRight className="w-4 h-4" />
-            </Link>
+              <PhoneCall className="w-3.5 h-3.5" />
+              <span>+92 340 0072030</span>
+            </a>
           </div>
         </div>
 
-        {/* CARD 6: Tank Stock - CYAN TO SKY GRADIENT */}
-        <div className="bg-gradient-to-br from-cyan-50 via-sky-50 to-sky-100 rounded-2xl p-6 border-l-4 border-cyan-500 border border-cyan-200/70 shadow-lg hover:shadow-xl transition-all group">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-cyan-200 text-cyan-800 flex items-center justify-center shadow-sm">
-                <Droplet className="w-6 h-6" />
-              </div>
-              <div>
-                <span className="text-[11px] font-black uppercase tracking-wider text-cyan-800 block">
-                  Card 6 • ٹینک کا موجودہ اسٹاک
-                </span>
-                <span className="text-xs text-cyan-900/70 font-semibold">Live Tank Stock</span>
-              </div>
-            </div>
-            <span className="text-[11px] font-black px-2.5 py-1 rounded-full bg-white/90 border border-cyan-300 text-cyan-800 shadow-sm">
-              Live Stock
-            </span>
-          </div>
-
-          <div className="mt-4 space-y-2.5">
-            {tanks.length === 0 ? (
-              <div className="text-xs text-cyan-800/70 py-2">کوئی ٹینک سیٹ نہیں ہے۔ سیٹنگ میں شامل کریں۔</div>
-            ) : (
-              tanks.slice(0, 3).map((tank) => {
-                const pct = Math.min(100, Math.round((tank.current_stock / tank.capacity) * 100));
-                return (
-                  <div key={tank.id} className="p-2.5 rounded-xl bg-white/80 border border-cyan-200/80 shadow-xs">
-                    <div className="flex items-center justify-between text-xs mb-1">
-                      <span className="font-bold text-slate-800">
-                        {tank.name.split("(")[0]}
-                      </span>
-                      <span className="font-mono font-black text-slate-900">
-                        {formatLitres(tank.current_stock)}
-                        <span className="text-[10px] text-cyan-800 font-bold ml-1">({pct}%)</span>
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-500 ${
-                          tank.fuel_type === "Diesel"
-                            ? "bg-amber-500"
-                            : tank.fuel_type === "HiOctane"
-                            ? "bg-pink-500"
-                            : "bg-emerald-500"
-                        }`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-
-          <div className="mt-4 pt-3 border-t border-cyan-200/60 flex items-center justify-between text-xs">
-            <Link href="/tank-khata" className="text-cyan-800 hover:text-cyan-950 flex items-center gap-1 font-bold">
-              <span>روزانہ ٹینک کھاتہ (Dip)</span>
-              <ArrowUpRight className="w-4 h-4" />
-            </Link>
-          </div>
+        <div className="max-w-7xl mx-auto mt-8 pt-6 border-t border-slate-800/80 text-center text-slate-500 text-[11px]">
+          Developed by <strong>Naveed Bhatti</strong> • Nexeta Technologies • All Rights Reserved © {new Date().getFullYear()}
         </div>
-      </div>
-
-      {/* QUICK ACTIONS BAR (School SaaS Style) */}
-      <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-md">
-        <div className="text-xs font-black uppercase tracking-wider text-slate-500 mb-3.5 flex items-center gap-1.5">
-          <Sparkles className="w-4 h-4 text-indigo-600" />
-          <span>Quick Actions • فوری کارروائی کے بٹن</span>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
-          <Link
-            href="/cash-closing"
-            className="flex flex-col items-center justify-center p-3.5 rounded-xl bg-violet-50/80 hover:bg-violet-100/90 border border-violet-200 hover:border-violet-400 group transition-all text-center shadow-xs"
-          >
-            <div className="w-10 h-10 rounded-xl bg-violet-200 text-violet-800 flex items-center justify-center group-hover:scale-110 transition-transform mb-2">
-              <Wallet className="w-5 h-5" />
-            </div>
-            <span className="text-xs font-black text-violet-950">Cash Closing</span>
-            <span className="text-[10px] text-violet-700 font-bold">شفت ہینڈ اوور</span>
-          </Link>
-
-          <Link
-            href="/readings"
-            className="flex flex-col items-center justify-center p-3.5 rounded-xl bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 group transition-all text-center"
-          >
-            <div className="w-10 h-10 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center group-hover:scale-110 transition-transform mb-2">
-              <Gauge className="w-5 h-5" />
-            </div>
-            <span className="text-xs font-bold text-slate-900">Nozzle Reading</span>
-            <span className="text-[10px] text-slate-500">میٹر ریڈنگ</span>
-          </Link>
-
-          <Link
-            href="/tank-khata"
-            className="flex flex-col items-center justify-center p-3.5 rounded-xl bg-slate-50 hover:bg-cyan-50 border border-slate-200 hover:border-cyan-300 group transition-all text-center"
-          >
-            <div className="w-10 h-10 rounded-xl bg-cyan-100 text-cyan-700 flex items-center justify-center group-hover:scale-110 transition-transform mb-2">
-              <Droplets className="w-5 h-5" />
-            </div>
-            <span className="text-xs font-bold text-slate-900">Tank Khata</span>
-            <span className="text-[10px] text-slate-500">روزانہ ٹینک کھاتہ و ڈپ</span>
-          </Link>
-
-          <Link
-            href="/employees"
-            className="flex flex-col items-center justify-center p-3.5 rounded-xl bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 group transition-all text-center"
-          >
-            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center group-hover:scale-110 transition-transform mb-2">
-              <Users className="w-5 h-5" />
-            </div>
-            <span className="text-xs font-bold text-slate-900">Employee Duty</span>
-            <span className="text-[10px] text-slate-500">ڈیوٹی و تنخواہ</span>
-          </Link>
-
-          <Link
-            href="/khata"
-            className="flex flex-col items-center justify-center p-3.5 rounded-xl bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 group transition-all text-center"
-          >
-            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center group-hover:scale-110 transition-transform mb-2">
-              <BookOpen className="w-5 h-5" />
-            </div>
-            <span className="text-xs font-bold text-slate-900">Udhar / Khata</span>
-            <span className="text-[10px] text-slate-500">ادھار و واٹس ایپ</span>
-          </Link>
-
-          <Link
-            href="/expenses"
-            className="flex flex-col items-center justify-center p-3.5 rounded-xl bg-slate-50 hover:bg-rose-50 border border-slate-200 hover:border-rose-300 group transition-all text-center"
-          >
-            <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center group-hover:scale-110 transition-transform mb-2">
-              <Receipt className="w-5 h-5" />
-            </div>
-            <span className="text-xs font-bold text-slate-900">Add Kharcha</span>
-            <span className="text-[10px] text-slate-500">روزانہ خرچہ</span>
-          </Link>
-
-          <Link
-            href="/purchases"
-            className="flex flex-col items-center justify-center p-3.5 rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 group transition-all text-center"
-          >
-            <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center group-hover:scale-110 transition-transform mb-2">
-              <Truck className="w-5 h-5" />
-            </div>
-            <span className="text-xs font-bold text-slate-900">Fuel Purchase</span>
-            <span className="text-[10px] text-slate-500">گاڑی ٹینکر خرید</span>
-          </Link>
-        </div>
-      </div>
+      </footer>
     </div>
   );
 }

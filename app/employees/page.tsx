@@ -249,7 +249,7 @@ export default function EmployeesPage() {
   // Open Edit Duty Modal
   const openEditDutyModal = (duty: EmployeeDuty) => {
     setEditDutyId(duty.id);
-    setEditDutyEmpName(duty.employeeName || `Employee #${duty.employee_id}`);
+    setEditDutyEmpName(duty.employee?.name || duty.employeeName || `Employee #${duty.employee_id}`);
     setEditDutyShift(duty.shift || "Morning");
     setEditDutyNozzle(duty.nozzle_assigned || "");
     setEditDutyPresent(duty.present === 1);

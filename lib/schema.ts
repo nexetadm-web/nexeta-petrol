@@ -1,9 +1,53 @@
 import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 import { relations } from "drizzle-orm";
 
+// ==========================================
+// 0. MULTI-TENANT SAAS CORE TABLES
+// ==========================================
+
+// Pumps (Tenants - Petrol Stations)
+export const pumps = sqliteTable("pumps", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  pump_name: text("pump_name").notNull(),
+  owner_name: text("owner_name").notNull(),
+  phone: text("phone").notNull(),
+  email: text("email").notNull().unique(),
+  city: text("city").notNull(),
+  cnic: text("cnic"),
+  password_hash: text("password_hash").notNull(),
+  subscription_status: text("subscription_status").notNull().default("trial"), // "active" | "trial" | "expired"
+  trial_ends_at: text("trial_ends_at").notNull(), // ISO Date string
+  created_at: text("created_at").notNull(),
+});
+
+// Users (Staff / Owners belonging to a specific Pump)
+export const users = sqliteTable("users", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull(),
+  email: text("email").notNull().unique(),
+  password_hash: text("password_hash").notNull(),
+  role: text("role").notNull().default("owner"), // "owner" | "manager" | "cashier"
+  name: text("name").notNull(),
+  created_at: text("created_at").notNull(),
+});
+
+// Super Admins (Platform Owners - e.g. Naveed Bhatti)
+export const superAdmins = sqliteTable("super_admins", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  email: text("email").notNull().unique(),
+  password_hash: text("password_hash").notNull(),
+  name: text("name").notNull().default("Super Admin"),
+  created_at: text("created_at").notNull(),
+});
+
+// ==========================================
+// 1. PUMP OPERATIONAL TABLES (ALL WITH pump_id)
+// ==========================================
+
 // 1. Tanks (Petrol, Diesel, Hi-Octane)
 export const tanks = sqliteTable("tanks", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
   name: text("name").notNull(), // e.g. "Petrol Tank 1", "Diesel Tank 1"
   fuel_type: text("fuel_type").notNull(), // "Petrol" | "Diesel" | "HiOctane"
   capacity: real("capacity").notNull().default(25000), // in litres
@@ -13,6 +57,7 @@ export const tanks = sqliteTable("tanks", {
 // 2. Nozzles (Supports 4 to 20 dynamically linked to a Tank)
 export const nozzles = sqliteTable("nozzles", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
   name: text("name").notNull(), // e.g. "Nozzle 1", "Nozzle 2"
   tank_id: integer("tank_id").references(() => tanks.id, { onDelete: "cascade" }).notNull(),
 });
@@ -20,7 +65,8 @@ export const nozzles = sqliteTable("nozzles", {
 // 3. Daily Rates (Set daily prices for Petrol, Diesel, HiOctane)
 export const dailyRates = sqliteTable("daily_rates", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  date: text("date").notNull().unique(), // YYYY-MM-DD or DD-MM-YYYY
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
+  date: text("date").notNull(), // DD-MM-YYYY or YYYY-MM-DD
   petrol_rate: real("petrol_rate").notNull(),
   diesel_rate: real("diesel_rate").notNull(),
   hioctane_rate: real("hioctane_rate").notNull(),
@@ -29,6 +75,7 @@ export const dailyRates = sqliteTable("daily_rates", {
 // 4. Daily Readings (Nozzle meter readings - 24-Hour Time-Based)
 export const dailyReadings = sqliteTable("daily_readings", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
   date: text("date").notNull(), // DD-MM-YYYY or YYYY-MM-DD
   nozzle_id: integer("nozzle_id").references(() => nozzles.id, { onDelete: "cascade" }).notNull(),
   start_time: text("start_time"), // e.g. "08:00 AM"
@@ -45,6 +92,7 @@ export const dailyReadings = sqliteTable("daily_readings", {
 // 5. Fuel Purchases (Tankers received from PSO/Shell/Attock/etc.)
 export const fuelPurchases = sqliteTable("fuel_purchases", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
   date: text("date").notNull(), // YYYY-MM-DD or DD-MM-YYYY
   fuel_type: text("fuel_type").notNull(), // "Petrol" | "Diesel" | "HiOctane"
   qty: real("qty").notNull(), // Litres
@@ -56,6 +104,7 @@ export const fuelPurchases = sqliteTable("fuel_purchases", {
 // 6. Products (Mobil Oil, Grease, Filters, Coolants, etc.)
 export const products = sqliteTable("products", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
   name: text("name").notNull(), // "Havoline 20W-50 4L", "Delo Gold 5L"
   category: text("category").notNull(), // "Mobil Oil", "Filter", "Grease", "Brake Fluid", "Other"
   purchase_price: real("purchase_price").notNull(),
@@ -66,6 +115,7 @@ export const products = sqliteTable("products", {
 // 7. Product Sales (Retail counter sales)
 export const productSales = sqliteTable("product_sales", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
   date: text("date").notNull(), // YYYY-MM-DD or DD-MM-YYYY
   product_id: integer("product_id").references(() => products.id, { onDelete: "cascade" }).notNull(),
   qty: real("qty").notNull(),
@@ -76,6 +126,7 @@ export const productSales = sqliteTable("product_sales", {
 // 8. Credit Customers (Udhar Party / Fleet accounts)
 export const creditCustomers = sqliteTable("credit_customers", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
   name: text("name").notNull(), // Customer or driver name
   company: text("company"), // e.g. "Al-Madina Goods Transport"
   vehicle_no: text("vehicle_no"), // e.g. "LES-24-1188"
@@ -85,6 +136,7 @@ export const creditCustomers = sqliteTable("credit_customers", {
 // 9. Credit Sales & Payments (Ledger transactions)
 export const creditSales = sqliteTable("credit_sales", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
   customer_id: integer("customer_id").references(() => creditCustomers.id, { onDelete: "cascade" }).notNull(),
   date: text("date").notNull(), // YYYY-MM-DD or DD-MM-YYYY
   type: text("type").notNull(), // "Fuel" | "Product" | "Payment"
@@ -97,6 +149,7 @@ export const creditSales = sqliteTable("credit_sales", {
 // 10. Expenses (Bijli, Generator, Staff Salary, Khaba/Tea, Maintenance)
 export const expenses = sqliteTable("expenses", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
   date: text("date").notNull(), // YYYY-MM-DD or DD-MM-YYYY
   type: text("type").notNull(), // "Bijli" | "Salary" | "Generator" | "Tea/Khaba" | "Maintenance" | "Other"
   amount: real("amount").notNull(),
@@ -106,6 +159,7 @@ export const expenses = sqliteTable("expenses", {
 // 11. Dip Chart Calibration Table (Maps Dip Inch/CM to Litres)
 export const dipCharts = sqliteTable("dip_charts", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
   tank_id: integer("tank_id").references(() => tanks.id, { onDelete: "cascade" }),
   fuel_type: text("fuel_type").notNull(), // "Petrol" | "Diesel" | "HiOctane"
   dip_value: real("dip_value").notNull(), // Dip measurement value
@@ -116,6 +170,7 @@ export const dipCharts = sqliteTable("dip_charts", {
 // 12. Daily Tank Khata Table (Physical Dip vs Register Stock & Gain/Loss)
 export const tankKhata = sqliteTable("tank_khata", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
   date: text("date").notNull(), // DD-MM-YYYY or YYYY-MM-DD
   tank_id: integer("tank_id").references(() => tanks.id, { onDelete: "cascade" }).notNull(),
   fuel_type: text("fuel_type").notNull(), // "Petrol" | "Diesel" | "HiOctane"
@@ -131,6 +186,7 @@ export const tankKhata = sqliteTable("tank_khata", {
 // 13. Employees Master (Staff records)
 export const employees = sqliteTable("employees", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
   name: text("name").notNull(),
   phone: text("phone").notNull(),
   duty_type: text("duty_type").notNull(), // "Cashier" | "Nozzle Operator" | "Manager" | "Security" | "Cleaner"
@@ -141,6 +197,7 @@ export const employees = sqliteTable("employees", {
 // 14. Employee Duty (Daily shift assignments & attendance)
 export const employeeDuty = sqliteTable("employee_duty", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
   date: text("date").notNull(), // DD-MM-YYYY or YYYY-MM-DD
   employee_id: integer("employee_id").references(() => employees.id, { onDelete: "cascade" }).notNull(),
   shift: text("shift").notNull(), // "Morning" | "Evening" | "Night"
@@ -149,14 +206,75 @@ export const employeeDuty = sqliteTable("employee_duty", {
   notes: text("notes"),
 });
 
-// Relations
-export const tanksRelations = relations(tanks, ({ many }) => ({
+// 15. Daily Cash Closing / Shift Handover Table
+export const cashClosings = sqliteTable("cash_closings", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
+  date: text("date").notNull(), // DD-MM-YYYY
+  shift: text("shift").notNull(), // "Morning" | "Evening" | "Night" | "FullDay"
+  total_nozzle_sale_rs: real("total_nozzle_sale_rs").notNull().default(0),
+  total_oil_products_sale_rs: real("total_oil_products_sale_rs").notNull().default(0),
+  total_sale_rs: real("total_sale_rs").notNull().default(0),
+  total_udhar_rs: real("total_udhar_rs").notNull().default(0),
+  total_kharcha_rs: real("total_kharcha_rs").notNull().default(0),
+  expected_cash_in_hand: real("expected_cash_in_hand").notNull().default(0),
+  actual_cash_submitted_rs: real("actual_cash_submitted_rs").notNull().default(0),
+  difference_rs: real("difference_rs").notNull().default(0), // actual - expected
+  submitted_by: text("submitted_by"),
+  receiver_name: text("receiver_name"),
+  notes: text("notes"),
+  created_at: text("created_at"),
+});
+
+// 16. Pump Settings (Key-Value per Pump for Low Stock Threshold, Pump Name, etc.)
+export const pumpSettings = sqliteTable("pump_settings", {
+  key: text("key").primaryKey(), // formatted as `${pump_id}:${settingKey}` or plain key for default pump
+  value: text("value").notNull(),
+});
+
+// ==========================================
+// RELATIONS
+// ==========================================
+
+export const pumpsRelations = relations(pumps, ({ many }) => ({
+  users: many(users),
+  tanks: many(tanks),
+  nozzles: many(nozzles),
+  rates: many(dailyRates),
+  readings: many(dailyReadings),
+  purchases: many(fuelPurchases),
+  products: many(products),
+  productSales: many(productSales),
+  creditCustomers: many(creditCustomers),
+  creditSales: many(creditSales),
+  expenses: many(expenses),
+  employees: many(employees),
+  tankKhata: many(tankKhata),
+  cashClosings: many(cashClosings),
+}));
+
+export const usersRelations = relations(users, ({ one }) => ({
+  pump: one(pumps, {
+    fields: [users.pump_id],
+    references: [pumps.id],
+  }),
+}));
+
+export const tanksRelations = relations(tanks, ({ one, many }) => ({
+  pump: one(pumps, {
+    fields: [tanks.pump_id],
+    references: [pumps.id],
+  }),
   nozzles: many(nozzles),
   dipCharts: many(dipCharts),
   tankKhata: many(tankKhata),
 }));
 
 export const nozzlesRelations = relations(nozzles, ({ one, many }) => ({
+  pump: one(pumps, {
+    fields: [nozzles.pump_id],
+    references: [pumps.id],
+  }),
   tank: one(tanks, {
     fields: [nozzles.tank_id],
     references: [tanks.id],
@@ -217,28 +335,3 @@ export const employeeDutyRelations = relations(employeeDuty, ({ one }) => ({
     references: [employees.id],
   }),
 }));
-
-// 15. Daily Cash Closing / Shift Handover Table
-export const cashClosings = sqliteTable("cash_closings", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  date: text("date").notNull(), // DD-MM-YYYY
-  shift: text("shift").notNull(), // "Morning" | "Evening" | "Night" | "FullDay"
-  total_nozzle_sale_rs: real("total_nozzle_sale_rs").notNull().default(0),
-  total_oil_products_sale_rs: real("total_oil_products_sale_rs").notNull().default(0),
-  total_sale_rs: real("total_sale_rs").notNull().default(0),
-  total_udhar_rs: real("total_udhar_rs").notNull().default(0),
-  total_kharcha_rs: real("total_kharcha_rs").notNull().default(0),
-  expected_cash_in_hand: real("expected_cash_in_hand").notNull().default(0),
-  actual_cash_submitted_rs: real("actual_cash_submitted_rs").notNull().default(0),
-  difference_rs: real("difference_rs").notNull().default(0), // actual - expected
-  submitted_by: text("submitted_by"),
-  receiver_name: text("receiver_name"),
-  notes: text("notes"),
-  created_at: text("created_at"),
-});
-
-// 16. Pump Settings (Key-Value for Low Stock Threshold, Pump Name, etc.)
-export const pumpSettings = sqliteTable("pump_settings", {
-  key: text("key").primaryKey(),
-  value: text("value").notNull(),
-});

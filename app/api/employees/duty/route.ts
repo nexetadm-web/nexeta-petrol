@@ -1,19 +1,20 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { employeeDuty, employees, nozzles } from "@/lib/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { formatDate, getTodayDatePK, toStandardYMD } from "@/lib/formatters";
+import { getCurrentPumpId } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const { searchParams } = new URL(request.url);
     const dateParam = searchParams.get("date");
     const targetDate = dateParam ? formatDate(dateParam) : getTodayDatePK();
     const ymdDate = toStandardYMD(targetDate);
 
-    // Fetch duties for target date (supports both DD-MM-YYYY and YYYY-MM-DD stored dates)
     const duties = await db
       .select({
         id: employeeDuty.id,
@@ -30,15 +31,14 @@ export async function GET(request: Request) {
       })
       .from(employeeDuty)
       .leftJoin(employees, eq(employeeDuty.employee_id, employees.id))
+      .where(eq(employeeDuty.pump_id, pumpId))
       .orderBy(desc(employeeDuty.id));
 
-    // Filter by target date
     const filtered = duties.filter(
       (d) => d.date === targetDate || d.date === ymdDate || formatDate(d.date) === targetDate
     );
 
-    // Also fetch all nozzles for easy assignment in UI
-    const allNozzles = await db.select().from(nozzles);
+    const allNozzles = await db.select().from(nozzles).where(eq(nozzles.pump_id, pumpId));
 
     return NextResponse.json({
       success: true,
@@ -53,6 +53,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const body = await request.json();
     const { date, employee_id, shift, nozzle_assigned, present, notes } = body;
 
@@ -68,6 +69,7 @@ export async function POST(request: Request) {
     const [record] = await db
       .insert(employeeDuty)
       .values({
+        pump_id: pumpId,
         date: dutyDate,
         employee_id: Number(employee_id),
         shift: shift || "Morning",
@@ -89,6 +91,7 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const body = await request.json();
     const { id, present } = body;
 
@@ -101,7 +104,7 @@ export async function PATCH(request: Request) {
       .set({
         present: present ? 1 : 0,
       })
-      .where(eq(employeeDuty.id, Number(id)));
+      .where(and(eq(employeeDuty.id, Number(id)), eq(employeeDuty.pump_id, pumpId)));
 
     return NextResponse.json({
       success: true,
@@ -114,6 +117,7 @@ export async function PATCH(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const body = await request.json();
     const { id, shift, nozzle_assigned, present, notes } = body;
 
@@ -129,7 +133,7 @@ export async function PUT(request: Request) {
         present: present !== undefined ? (present ? 1 : 0) : 1,
         notes: notes || "",
       })
-      .where(eq(employeeDuty.id, Number(id)))
+      .where(and(eq(employeeDuty.id, Number(id)), eq(employeeDuty.pump_id, pumpId)))
       .returning();
 
     return NextResponse.json({
@@ -144,13 +148,14 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
     if (!id) {
       return NextResponse.json({ success: false, error: "ID is required" }, { status: 400 });
     }
 
-    await db.delete(employeeDuty).where(eq(employeeDuty.id, Number(id)));
+    await db.delete(employeeDuty).where(and(eq(employeeDuty.id, Number(id)), eq(employeeDuty.pump_id, pumpId)));
     return NextResponse.json({ success: true, message: "ڈیوٹی کا ریکارڈ حذف کر دیا گیا" });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

@@ -29,7 +29,7 @@ const NAV_ITEMS = [
   {
     name: "Dashboard",
     urdu: "ڈیش بورڈ",
-    href: "/",
+    href: "/dashboard",
     icon: LayoutDashboard,
     iconColor: "text-indigo-600",
   },

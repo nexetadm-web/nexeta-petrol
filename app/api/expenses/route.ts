@@ -1,22 +1,23 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { expenses } from "@/lib/schema";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, and } from "drizzle-orm";
 import { getTodayDateString } from "@/lib/formatters";
+import { getCurrentPumpId } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const { searchParams } = new URL(request.url);
     const date = searchParams.get("date");
 
-    let query = db.select().from(expenses);
     if (date) {
       const results = await db
         .select()
         .from(expenses)
-        .where(eq(expenses.date, date))
+        .where(and(eq(expenses.date, date), eq(expenses.pump_id, pumpId)))
         .orderBy(desc(expenses.id));
       return NextResponse.json({ success: true, expenses: results });
     }
@@ -24,6 +25,7 @@ export async function GET(request: Request) {
     const allExpenses = await db
       .select()
       .from(expenses)
+      .where(eq(expenses.pump_id, pumpId))
       .orderBy(desc(expenses.date), desc(expenses.id))
       .limit(100);
 
@@ -35,6 +37,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const body = await request.json();
     const { date, type, amount, note } = body;
 
@@ -50,6 +53,7 @@ export async function POST(request: Request) {
     const [newExpense] = await db
       .insert(expenses)
       .values({
+        pump_id: pumpId,
         date: targetDate,
         type,
         amount: Number(amount),
@@ -69,6 +73,7 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
@@ -76,7 +81,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ success: false, error: "Expense ID is required" }, { status: 400 });
     }
 
-    await db.delete(expenses).where(eq(expenses.id, Number(id)));
+    await db.delete(expenses).where(and(eq(expenses.id, Number(id)), eq(expenses.pump_id, pumpId)));
 
     return NextResponse.json({ success: true, message: "خرچہ حذف کر دیا گیا" });
   } catch (error: any) {

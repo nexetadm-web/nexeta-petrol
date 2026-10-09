@@ -1,7 +1,51 @@
 export type FuelType = "Petrol" | "Diesel" | "HiOctane";
 
+export interface Pump {
+  id: number;
+  pump_name: string;
+  owner_name: string;
+  phone: string;
+  email: string;
+  city: string;
+  cnic?: string | null;
+  password_hash?: string;
+  subscription_status: "active" | "trial" | "expired";
+  trial_ends_at: string;
+  created_at: string;
+}
+
+export interface User {
+  id: number;
+  pump_id: number;
+  email: string;
+  role: "owner" | "manager" | "cashier";
+  name: string;
+  created_at: string;
+}
+
+export interface SuperAdmin {
+  id: number;
+  email: string;
+  name: string;
+  created_at: string;
+}
+
+export interface AuthSession {
+  userId: number;
+  pumpId: number;
+  email: string;
+  name: string;
+  role: "owner" | "manager" | "cashier";
+  pumpName: string;
+  city: string;
+  subscriptionStatus: "active" | "trial" | "expired";
+  trialEndsAt: string;
+  impersonating?: boolean;
+}
+
 export interface Tank {
   id: number;
+  pump_id?: number;
   name: string;
   fuel_type: FuelType;
   capacity: number;
@@ -10,6 +54,7 @@ export interface Tank {
 
 export interface Nozzle {
   id: number;
+  pump_id?: number;
   name: string;
   tank_id: number;
   tank?: Tank;
@@ -17,6 +62,7 @@ export interface Nozzle {
 
 export interface DailyRate {
   id: number;
+  pump_id?: number;
   date: string;
   petrol_rate: number;
   diesel_rate: number;
@@ -25,6 +71,7 @@ export interface DailyRate {
 
 export interface DailyReading {
   id: number;
+  pump_id?: number;
   date: string;
   nozzle_id: number;
   start_time?: string;
@@ -42,6 +89,7 @@ export interface DailyReading {
 
 export interface FuelPurchase {
   id: number;
+  pump_id?: number;
   date: string;
   fuel_type: FuelType;
   qty: number;
@@ -52,6 +100,7 @@ export interface FuelPurchase {
 
 export interface Product {
   id: number;
+  pump_id?: number;
   name: string;
   category: string;
   purchase_price: number;
@@ -61,6 +110,7 @@ export interface Product {
 
 export interface ProductSale {
   id: number;
+  pump_id?: number;
   date: string;
   product_id: number;
   qty: number;
@@ -71,6 +121,7 @@ export interface ProductSale {
 
 export interface CreditCustomer {
   id: number;
+  pump_id?: number;
   name: string;
   company: string | null;
   vehicle_no: string | null;
@@ -82,6 +133,7 @@ export interface CreditCustomer {
 
 export interface CreditSale {
   id: number;
+  pump_id?: number;
   customer_id: number;
   date: string;
   type: string;
@@ -94,6 +146,7 @@ export interface CreditSale {
 
 export interface Expense {
   id: number;
+  pump_id?: number;
   date: string;
   type: string;
   amount: number;
@@ -102,47 +155,49 @@ export interface Expense {
 
 export interface DipChart {
   id: number;
-  tank_id: number | null;
-  fuel_type: string;
+  pump_id?: number;
+  tank_id?: number;
+  fuel_type: FuelType;
   dip_value: number;
-  unit: string;
+  unit: "inch" | "cm" | string;
   litres: number;
-  tank?: Tank;
 }
 
 export interface TankKhata {
   id: number;
+  pump_id?: number;
   date: string;
   tank_id: number;
-  fuel_type: string;
+  fuel_type: FuelType;
   dip_value: number;
-  dip_unit: string;
+  dip_unit: "inch" | "cm" | string;
   dip_litres: number;
   tank_stock: number;
   register_stock: number;
   gain_loss: number;
-  remarks: string | null;
-  tank?: Tank;
+  remarks?: string | null;
   tankName?: string;
 }
 
 export interface Employee {
   id: number;
+  pump_id?: number;
   name: string;
   phone: string;
   duty_type: string;
   salary: number;
-  status: string;
+  status: "Active" | "Inactive" | string;
 }
 
 export interface EmployeeDuty {
   id: number;
+  pump_id?: number;
   date: string;
   employee_id: number;
   shift: "Morning" | "Evening" | "Night" | string;
-  nozzle_assigned: string | null;
+  nozzle_assigned?: string | null;
   present: number;
-  notes: string | null;
+  notes?: string | null;
   employee?: Employee;
   employeeName?: string;
   employeePhone?: string;
@@ -151,27 +206,26 @@ export interface EmployeeDuty {
 }
 
 export interface DashboardMetrics {
-  todayFuelLitres: number;
-  todayFuelSaleRs: number;
-  todayProductSaleRs: number;
-  todayTotalSaleRs: number;
-  totalCreditRemainingRs: number;
-  todayExpenseRs: number;
-  todayEstimatedNetProfitRs: number;
-  tanks: Tank[];
-  todayRate: DailyRate | null;
-  isRateSetToday: boolean;
-  recentSales: {
-    type: "Fuel" | "Product" | "Credit";
-    title: string;
-    description: string;
-    amount: number;
-    time: string;
+  totalFuelSaleLitres: number;
+  fuelRevenueRs: number;
+  goodsRevenueRs: number;
+  totalRevenueRs: number;
+  creditOutstandingRs: number;
+  totalExpensesRs: number;
+  netProfitRs: number;
+  tanks: {
+    id: number;
+    name: string;
+    fuel_type: FuelType;
+    capacity: number;
+    current_stock: number;
+    fill_percentage: number;
   }[];
 }
 
 export interface CashClosing {
   id: number;
+  pump_id?: number;
   date: string;
   shift: "Morning" | "Evening" | "Night" | "FullDay" | string;
   total_nozzle_sale_rs: number;

@@ -131,6 +131,8 @@ export function formatDateDisplay(dateStr: string | null | undefined): string {
   return formatDate(dateStr);
 }
 
+export const formatPKDate = formatDate;
+
 /**
  * Format time in 12-hour format with Asia/Karachi timezone (e.g. 05:30 PM)
  */

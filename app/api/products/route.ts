@@ -1,15 +1,18 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { products, productSales } from "@/lib/schema";
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq, and } from "drizzle-orm";
+import { getCurrentPumpId } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const allProducts = await db
       .select()
       .from(products)
+      .where(eq(products.pump_id, pumpId))
       .orderBy(products.category, products.name);
 
     const recentSales = await db
@@ -24,6 +27,7 @@ export async function GET() {
       })
       .from(productSales)
       .leftJoin(products, eq(productSales.product_id, products.id))
+      .where(eq(productSales.pump_id, pumpId))
       .orderBy(desc(productSales.date), desc(productSales.id))
       .limit(20);
 
@@ -35,6 +39,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const body = await request.json();
     const { name, category, purchase_price, sale_price, stock_qty } = body;
 
@@ -48,6 +53,7 @@ export async function POST(request: Request) {
     const [newProduct] = await db
       .insert(products)
       .values({
+        pump_id: pumpId,
         name,
         category,
         purchase_price: Number(purchase_price),

@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { nozzles, tanks } from "@/lib/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { getCurrentPumpId } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const allNozzles = await db
       .select({
         id: nozzles.id,
@@ -16,7 +18,8 @@ export async function GET() {
         fuelType: tanks.fuel_type,
       })
       .from(nozzles)
-      .leftJoin(tanks, eq(nozzles.tank_id, tanks.id));
+      .leftJoin(tanks, eq(nozzles.tank_id, tanks.id))
+      .where(eq(nozzles.pump_id, pumpId));
 
     return NextResponse.json({ success: true, nozzles: allNozzles });
   } catch (error: any) {
@@ -26,6 +29,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const body = await request.json();
     const { name, tank_id } = body;
 
@@ -36,8 +40,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check 4 to 20 nozzles rule
-    const existingNozzles = await db.select().from(nozzles);
+    const existingNozzles = await db.select().from(nozzles).where(eq(nozzles.pump_id, pumpId));
     if (existingNozzles.length >= 20) {
       return NextResponse.json(
         {
@@ -51,6 +54,7 @@ export async function POST(request: Request) {
     const [newNozzle] = await db
       .insert(nozzles)
       .values({
+        pump_id: pumpId,
         name,
         tank_id: Number(tank_id),
       })
@@ -68,6 +72,7 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const body = await request.json();
     const { id, name, tank_id } = body;
 
@@ -84,7 +89,7 @@ export async function PUT(request: Request) {
         name,
         tank_id: Number(tank_id),
       })
-      .where(eq(nozzles.id, Number(id)))
+      .where(and(eq(nozzles.id, Number(id)), eq(nozzles.pump_id, pumpId)))
       .returning();
 
     return NextResponse.json({
@@ -99,6 +104,7 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const pumpId = await getCurrentPumpId(request);
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
@@ -106,8 +112,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ success: false, error: "Nozzle ID is required" }, { status: 400 });
     }
 
-    // Check minimum 4 nozzles rule
-    const existingNozzles = await db.select().from(nozzles);
+    const existingNozzles = await db.select().from(nozzles).where(eq(nozzles.pump_id, pumpId));
     if (existingNozzles.length <= 4) {
       return NextResponse.json(
         {
@@ -118,7 +123,7 @@ export async function DELETE(request: Request) {
       );
     }
 
-    await db.delete(nozzles).where(eq(nozzles.id, Number(id)));
+    await db.delete(nozzles).where(and(eq(nozzles.id, Number(id)), eq(nozzles.pump_id, pumpId)));
 
     return NextResponse.json({
       success: true,
