@@ -22,7 +22,8 @@ import {
   ShieldAlert,
   Cpu,
   CheckCheck,
-  CreditCard
+  CreditCard,
+  Scale
 } from "lucide-react";
 
 interface SidebarProps {
@@ -121,6 +122,13 @@ const NAV_ITEMS = [
     href: "/khata",
     icon: BookOpen,
     iconColor: "text-orange-500",
+  },
+  {
+    name: "Cash Loans",
+    urdu: "کیش لون (لینا دینا لیجر)",
+    href: "/cash-loans",
+    icon: Scale,
+    iconColor: "text-rose-600",
   },
   {
     name: "Kharcha",

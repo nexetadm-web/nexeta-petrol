@@ -26,7 +26,9 @@ import {
   LogOut,
   CreditCard,
   Cpu,
-  CheckCheck
+  CheckCheck,
+  Scale,
+  Layers
 } from "lucide-react";
 import { RateBanner } from "@/components/RateBanner";
 import { formatRs, formatLitres, getTodayDatePK, formatDate } from "@/lib/formatters";
@@ -421,13 +423,34 @@ export default function StationDashboard() {
           <Sparkles className="w-4 h-4 text-indigo-600" />
           <span>فوری شارٹ کٹس (Quick Station Actions)</span>
         </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-9 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
           <Link
             href="/readings"
             className="p-3 rounded-xl bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 text-slate-800 hover:text-indigo-900 font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition-all hover:scale-102"
           >
             <Gauge className="w-5 h-5 text-indigo-600" />
             <span>نوزل میٹر ریڈنگ</span>
+          </Link>
+          <Link
+            href={`/dashboard/pump/${session?.pumpId || 1}/rates`}
+            className="p-3 rounded-xl bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 text-slate-800 hover:text-amber-900 font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition-all hover:scale-102"
+          >
+            <TrendingUp className="w-5 h-5 text-amber-600" />
+            <span>نیا ریٹ (ڈیٹ ٹائم)</span>
+          </Link>
+          <Link
+            href={`/dashboard/pump/${session?.pumpId || 1}/reports/daily`}
+            className="p-3 rounded-xl bg-slate-50 hover:bg-purple-50 border border-slate-200 hover:border-purple-300 text-slate-800 hover:text-purple-900 font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition-all hover:scale-102"
+          >
+            <Layers className="w-5 h-5 text-purple-600" />
+            <span>24h ریٹ وائز رپورٹ</span>
+          </Link>
+          <Link
+            href="/cash-loans"
+            className="p-3 rounded-xl bg-slate-50 hover:bg-rose-50 border border-slate-200 hover:border-rose-300 text-slate-800 hover:text-rose-900 font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition-all hover:scale-102"
+          >
+            <Scale className="w-5 h-5 text-rose-600" />
+            <span>کیش لون لیجر</span>
           </Link>
           <Link
             href="/nozzle-matching"
@@ -438,9 +461,9 @@ export default function StationDashboard() {
           </Link>
           <Link
             href="/ai-detector"
-            className="p-3 rounded-xl bg-slate-50 hover:bg-purple-50 border border-slate-200 hover:border-purple-300 text-slate-800 hover:text-purple-900 font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition-all hover:scale-102"
+            className="p-3 rounded-xl bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 text-slate-800 hover:text-indigo-900 font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition-all hover:scale-102"
           >
-            <Cpu className="w-5 h-5 text-purple-600" />
+            <Cpu className="w-5 h-5 text-indigo-600" />
             <span>AI لیکج ڈیٹیکٹر</span>
           </Link>
           <Link
@@ -458,11 +481,11 @@ export default function StationDashboard() {
             <span>کیش کلوزنگ (Closing)</span>
           </Link>
           <Link
-            href="/tank-khata"
+            href={`/dashboard/pump/${session?.pumpId || 1}/tanks`}
             className="p-3 rounded-xl bg-slate-50 hover:bg-cyan-50 border border-slate-200 hover:border-cyan-300 text-slate-800 hover:text-cyan-900 font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition-all hover:scale-102"
           >
             <Droplet className="w-5 h-5 text-cyan-600" />
-            <span>ٹینک ڈپ کھاتہ</span>
+            <span>کسٹم ڈِپ چارٹ</span>
           </Link>
           <Link
             href="/udhar-khata"

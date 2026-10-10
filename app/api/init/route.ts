@@ -403,6 +403,69 @@ export async function GET() {
       );
     `);
 
+    // 4g. Fuel Current Rates Table
+    await tursoClient.execute(`
+      CREATE TABLE IF NOT EXISTS fuel_rates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pump_id INTEGER NOT NULL REFERENCES pumps(id) ON DELETE CASCADE DEFAULT 1,
+        product TEXT NOT NULL,
+        current_rate REAL NOT NULL,
+        last_effective_from TEXT NOT NULL,
+        updated_at TEXT
+      );
+    `);
+
+    // 4h. Fuel Rates History Table
+    await tursoClient.execute(`
+      CREATE TABLE IF NOT EXISTS fuel_rates_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pump_id INTEGER NOT NULL REFERENCES pumps(id) ON DELETE CASCADE DEFAULT 1,
+        product TEXT NOT NULL,
+        old_rate REAL DEFAULT 0,
+        new_rate REAL NOT NULL,
+        effective_from TEXT NOT NULL,
+        effective_to TEXT,
+        reason TEXT,
+        changed_by TEXT,
+        created_at TEXT
+      );
+    `);
+
+    // 4i. Cash Loans Table (Udhar Lena Dena)
+    await tursoClient.execute(`
+      CREATE TABLE IF NOT EXISTS cash_loans (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pump_id INTEGER NOT NULL REFERENCES pumps(id) ON DELETE CASCADE DEFAULT 1,
+        person_type TEXT NOT NULL DEFAULT 'person',
+        person_name TEXT NOT NULL,
+        phone TEXT,
+        loan_type TEXT NOT NULL,
+        amount REAL NOT NULL,
+        remaining_amount REAL NOT NULL,
+        reason TEXT,
+        loan_date TEXT NOT NULL,
+        due_date TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_by TEXT,
+        created_at TEXT
+      );
+    `);
+
+    // 4j. Cash Loan Transactions Table
+    await tursoClient.execute(`
+      CREATE TABLE IF NOT EXISTS cash_loan_transactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        loan_id INTEGER NOT NULL REFERENCES cash_loans(id) ON DELETE CASCADE,
+        pump_id INTEGER NOT NULL REFERENCES pumps(id) ON DELETE CASCADE DEFAULT 1,
+        type TEXT NOT NULL,
+        amount REAL NOT NULL,
+        date TEXT NOT NULL,
+        note TEXT,
+        proof_image_url TEXT,
+        created_at TEXT
+      );
+    `);
+
     // Performance Indexes for Sub-Millisecond Queries
     try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_dip_var_tank_date ON dip_variations(tank_id, pump_id, date);"); } catch (e) {}
     try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_stock_logs_tank_date ON stock_logs(tank_id, pump_id, date);"); } catch (e) {}
@@ -412,6 +475,9 @@ export async function GET() {
     try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_party_tx_party_date ON party_transactions(party_id, pump_id, date);"); } catch (e) {}
     try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_parties_pump ON parties(pump_id);"); } catch (e) {}
     try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_ai_alerts_pump ON ai_alerts(pump_id, tank_id);"); } catch (e) {}
+    try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_fuel_rates_hist_lookup ON fuel_rates_history(pump_id, product, effective_from);"); } catch (e) {}
+    try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_cash_loans_pump ON cash_loans(pump_id, loan_type, status);"); } catch (e) {}
+    try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_cash_loan_tx ON cash_loan_transactions(loan_id, pump_id);"); } catch (e) {}
 
     // 5. MIGRATION: ADD pump_id TO ALL OPERATIONAL TABLES (DEFAULT 1)
     const tablesToAlter = [

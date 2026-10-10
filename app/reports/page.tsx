@@ -12,7 +12,8 @@ import {
   Receipt, 
   AlertTriangle,
   Download,
-  Clock
+  Clock,
+  Layers
 } from "lucide-react";
 import { formatRs, formatLitres, getTodayDatePK, formatDate } from "@/lib/formatters";
 import { downloadDailyAuditPDF, downloadMonthlyAuditPDF } from "@/lib/pdf-generator";
@@ -126,7 +127,15 @@ export default function ReportsPage() {
             </div>
           )}
 
-          {/* Action Buttons: Print & Download PDF */}
+          {/* Action Buttons: Print & Download PDF & Rate-Wise Report */}
+          <a
+            href={`/dashboard/pump/1/reports/daily?date=${selectedDate}`}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-800 text-xs font-bold transition-all"
+          >
+            <Layers className="w-3.5 h-3.5 text-purple-700" />
+            <span>24h ریٹ وائز سیکشنز</span>
+          </a>
+
           <button
             onClick={() => window.print()}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-700 hover:text-slate-900 text-xs font-bold shadow-sm hover:shadow transition-all"

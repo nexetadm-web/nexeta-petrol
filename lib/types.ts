@@ -367,3 +367,54 @@ export interface PartyTransaction {
   description?: string | null;
   created_at?: string;
 }
+
+export interface FuelRate {
+  id: number;
+  pump_id: number;
+  product: "Petrol" | "Diesel" | "Super" | "HOBC" | string;
+  current_rate: number;
+  last_effective_from: string;
+  updated_at?: string;
+}
+
+export interface FuelRateHistory {
+  id: number;
+  pump_id: number;
+  product: "Petrol" | "Diesel" | "Super" | "HOBC" | string;
+  old_rate: number;
+  new_rate: number;
+  effective_from: string;
+  effective_to?: string | null;
+  reason?: string | null;
+  changed_by?: string | null;
+  created_at?: string;
+}
+
+export interface CashLoan {
+  id: number;
+  pump_id: number;
+  person_type: "person" | "bank" | "company" | "other" | string;
+  person_name: string;
+  phone?: string | null;
+  loan_type: "lena" | "dena" | string; // lena = Maine Liya (Payable), dena = Maine Diya (Receivable)
+  amount: number;
+  remaining_amount: number;
+  reason?: string | null;
+  loan_date: string;
+  due_date?: string | null;
+  status: "pending" | "partial" | "paid" | string;
+  created_by?: string | null;
+  created_at?: string;
+}
+
+export interface CashLoanTransaction {
+  id: number;
+  loan_id: number;
+  pump_id: number;
+  type: "pay" | "receive" | string;
+  amount: number;
+  date: string;
+  note?: string | null;
+  proof_image_url?: string | null;
+  created_at?: string;
+}

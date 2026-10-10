@@ -346,6 +346,61 @@ export const partyTransactions = sqliteTable("party_transactions", {
   created_at: text("created_at"),
 });
 
+// 22. Fuel Current Rates (Per product live rate)
+export const fuelRates = sqliteTable("fuel_rates", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
+  product: text("product").notNull(), // "Petrol" | "Diesel" | "Super" | "HOBC"
+  current_rate: real("current_rate").notNull(),
+  last_effective_from: text("last_effective_from").notNull(),
+  updated_at: text("updated_at"),
+});
+
+// 23. Fuel Rates History (With Effective Datetime Intervals for accurate intraday reports)
+export const fuelRatesHistory = sqliteTable("fuel_rates_history", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
+  product: text("product").notNull(), // "Petrol" | "Diesel" | "Super" | "HOBC"
+  old_rate: real("old_rate").default(0),
+  new_rate: real("new_rate").notNull(),
+  effective_from: text("effective_from").notNull(), // ISO Datetime or YYYY-MM-DD HH:mm:ss
+  effective_to: text("effective_to"), // Auto closed when next rate takes effect, NULL if current
+  reason: text("reason"), // e.g. "Govt notification", "OGRA Price revision"
+  changed_by: text("changed_by"),
+  created_at: text("created_at"),
+});
+
+// 24. Cash Loans (Udhar Lena Dena Ledger)
+export const cashLoans = sqliteTable("cash_loans", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
+  person_type: text("person_type").notNull().default("person"), // "person" | "bank" | "company" | "other"
+  person_name: text("person_name").notNull(),
+  phone: text("phone"),
+  loan_type: text("loan_type").notNull(), // "lena" (Maine Liya - Payable) | "dena" (Maine Diya - Receivable)
+  amount: real("amount").notNull(),
+  remaining_amount: real("remaining_amount").notNull(),
+  reason: text("reason"),
+  loan_date: text("loan_date").notNull(), // DD-MM-YYYY
+  due_date: text("due_date"), // DD-MM-YYYY (optional)
+  status: text("status").notNull().default("pending"), // "pending" | "partial" | "paid"
+  created_by: text("created_by"),
+  created_at: text("created_at"),
+});
+
+// 25. Cash Loan Transactions (Repayments & Partial collections timeline)
+export const cashLoanTransactions = sqliteTable("cash_loan_transactions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  loan_id: integer("loan_id").references(() => cashLoans.id, { onDelete: "cascade" }).notNull(),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
+  type: text("type").notNull(), // "pay" (Maine Wapas Kiya) | "receive" (Maine Wapas Liya)
+  amount: real("amount").notNull(),
+  date: text("date").notNull(), // DD-MM-YYYY
+  note: text("note"),
+  proof_image_url: text("proof_image_url"),
+  created_at: text("created_at"),
+});
+
 // ==========================================
 // RELATIONS
 // ==========================================
