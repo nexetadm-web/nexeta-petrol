@@ -157,14 +157,19 @@ export const creditSales = sqliteTable("credit_sales", {
   is_payment: integer("is_payment").notNull().default(0), // 1 if cash payment/wasooli, 0 if credit sale
 });
 
-// 10. Expenses (Bijli, Generator, Staff Salary, Khaba/Tea, Maintenance)
+// 10. Expenses (Bijli, Generator, Staff Salary, Khaba/Tea, Maintenance, etc.)
 export const expenses = sqliteTable("expenses", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
   date: text("date").notNull(), // YYYY-MM-DD or DD-MM-YYYY
-  type: text("type").notNull(), // "Bijli" | "Salary" | "Generator" | "Tea/Khaba" | "Maintenance" | "Other"
+  type: text("type").notNull().default("Other"), // Backwards compatibility: "Bijli" | "Salary" | "Generator" | "Tea/Khaba" | "Maintenance" | "Other"
+  category: text("category").notNull().default("other"), // 'electricity' | 'tea' | 'repair' | 'staff_advance' | 'cleaning' | 'rent' | 'other'
   amount: real("amount").notNull(),
-  note: text("note"),
+  description: text("description"), // Description of expense
+  note: text("note"), // Backwards compatibility
+  bill_image_url: text("bill_image_url"),
+  created_by: text("created_by"),
+  created_at: text("created_at"),
 });
 
 // 11. Dip Chart Calibration Table (Maps Dip mm/inch/cm to Litres per tank)
@@ -399,6 +404,47 @@ export const cashLoanTransactions = sqliteTable("cash_loan_transactions", {
   note: text("note"),
   proof_image_url: text("proof_image_url"),
   created_at: text("created_at"),
+});
+
+// 26. Shifts (Morning/Evening/Night Shift Handover & Sales)
+export const shifts = sqliteTable("shifts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
+  shift_name: text("shift_name").notNull(), // 'Morning' | 'Evening' | 'Night'
+  start_time: text("start_time").notNull(), // e.g. "08:00 AM"
+  end_time: text("end_time"), // e.g. "04:00 PM"
+  staff_id: integer("staff_id"),
+  staff_name: text("staff_name"),
+  date: text("date").notNull(), // DD-MM-YYYY
+  opening_cash: real("opening_cash").notNull().default(0),
+  closing_cash: real("closing_cash").notNull().default(0),
+  total_sale_liters: real("total_sale_liters").notNull().default(0),
+  total_income: real("total_income").notNull().default(0),
+  status: text("status").notNull().default("active"), // 'active' | 'closed'
+  created_at: text("created_at"),
+});
+
+// 27. Shift Nozzle Readings (Opening / Closing meters per nozzle during a shift)
+export const shiftNozzleReadings = sqliteTable("shift_nozzle_readings", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  shift_id: integer("shift_id").references(() => shifts.id, { onDelete: "cascade" }).notNull(),
+  nozzle_id: integer("nozzle_id").references(() => nozzles.id, { onDelete: "cascade" }).notNull(),
+  opening: real("opening").notNull().default(0),
+  closing: real("closing").notNull().default(0),
+  sale_liters: real("sale_liters").notNull().default(0),
+  rate: real("rate").notNull().default(0),
+  amount: real("amount").notNull().default(0),
+});
+
+// 28. Alert Settings (WhatsApp Auto Alerts Configuration per Pump)
+export const alertSettings = sqliteTable("alert_settings", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
+  low_stock_alert: integer("low_stock_alert").notNull().default(1), // 1 = true, 0 = false
+  low_stock_percent: integer("low_stock_percent").notNull().default(20),
+  daily_report_alert: integer("daily_report_alert").notNull().default(1), // 1 = true, 0 = false
+  owner_phone: text("owner_phone").default("923001234567"),
+  updated_at: text("updated_at"),
 });
 
 // ==========================================

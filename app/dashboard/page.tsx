@@ -28,7 +28,9 @@ import {
   Cpu,
   CheckCheck,
   Scale,
-  Layers
+  Layers,
+  Clock,
+  BellRing
 } from "lucide-react";
 import { RateBanner } from "@/components/RateBanner";
 import { formatRs, formatLitres, getTodayDatePK, formatDate } from "@/lib/formatters";
@@ -474,11 +476,32 @@ export default function StationDashboard() {
             <span>پارٹی لیجر و بل</span>
           </Link>
           <Link
-            href="/cash-closing"
+            href="/shifts"
             className="p-3 rounded-xl bg-slate-50 hover:bg-teal-50 border border-slate-200 hover:border-teal-300 text-slate-800 hover:text-teal-900 font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition-all hover:scale-102"
           >
-            <Wallet className="w-5 h-5 text-teal-600" />
-            <span>کیش کلوزنگ (Closing)</span>
+            <Clock className="w-5 h-5 text-teal-600" />
+            <span>شفٹ ہینڈ اوور (Shifts)</span>
+          </Link>
+          <Link
+            href={`/dashboard/pump/${session?.pumpId || 1}/reports/profit`}
+            className="p-3 rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 text-slate-800 hover:text-emerald-900 font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition-all hover:scale-102"
+          >
+            <TrendingUp className="w-5 h-5 text-emerald-600" />
+            <span>خالص منافع (P&L)</span>
+          </Link>
+          <Link
+            href="/expenses"
+            className="p-3 rounded-xl bg-slate-50 hover:bg-rose-50 border border-slate-200 hover:border-rose-300 text-slate-800 hover:text-rose-900 font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition-all hover:scale-102"
+          >
+            <Receipt className="w-5 h-5 text-rose-600" />
+            <span>روزانہ خرچہ جات</span>
+          </Link>
+          <Link
+            href={`/dashboard/pump/${session?.pumpId || 1}/settings/alerts`}
+            className="p-3 rounded-xl bg-slate-50 hover:bg-green-50 border border-slate-200 hover:border-green-300 text-slate-800 hover:text-green-900 font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition-all hover:scale-102"
+          >
+            <BellRing className="w-5 h-5 text-green-600" />
+            <span>واٹس ایپ آٹو الرٹس</span>
           </Link>
           <Link
             href={`/dashboard/pump/${session?.pumpId || 1}/tanks`}

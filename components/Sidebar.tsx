@@ -23,7 +23,9 @@ import {
   Cpu,
   CheckCheck,
   CreditCard,
-  Scale
+  Scale,
+  Clock,
+  BellRing
 } from "lucide-react";
 
 interface SidebarProps {
@@ -40,10 +42,10 @@ const NAV_ITEMS = [
     iconColor: "text-indigo-600",
   },
   {
-    name: "Cash Closing",
-    urdu: "شفت کیش ہینڈ اوور",
-    href: "/cash-closing",
-    icon: Wallet,
+    name: "Shift Handover",
+    urdu: "صبح و شام شفٹ مینیجمنٹ",
+    href: "/shifts",
+    icon: Clock,
     iconColor: "text-violet-600",
   },
   {
@@ -143,6 +145,13 @@ const NAV_ITEMS = [
     href: "/reports",
     icon: BarChart3,
     iconColor: "text-purple-600",
+  },
+  {
+    name: "WhatsApp Alerts",
+    urdu: "واٹس ایپ آٹو الرٹس",
+    href: "/dashboard/pump/1/settings/alerts",
+    icon: BellRing,
+    iconColor: "text-emerald-600",
   },
   {
     name: "Settings & Nozzles",

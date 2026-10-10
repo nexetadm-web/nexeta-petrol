@@ -466,6 +466,62 @@ export async function GET() {
       );
     `);
 
+    // 4k. Shifts Table (Morning/Evening/Night Shift Handover & Sales)
+    await tursoClient.execute(`
+      CREATE TABLE IF NOT EXISTS shifts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pump_id INTEGER NOT NULL REFERENCES pumps(id) ON DELETE CASCADE DEFAULT 1,
+        shift_name TEXT NOT NULL,
+        start_time TEXT NOT NULL,
+        end_time TEXT,
+        staff_id INTEGER,
+        staff_name TEXT,
+        date TEXT NOT NULL,
+        opening_cash REAL NOT NULL DEFAULT 0,
+        closing_cash REAL NOT NULL DEFAULT 0,
+        total_sale_liters REAL NOT NULL DEFAULT 0,
+        total_income REAL NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TEXT
+      );
+    `);
+
+    // 4l. Shift Nozzle Readings Table
+    await tursoClient.execute(`
+      CREATE TABLE IF NOT EXISTS shift_nozzle_readings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        shift_id INTEGER NOT NULL REFERENCES shifts(id) ON DELETE CASCADE,
+        nozzle_id INTEGER NOT NULL REFERENCES nozzles(id) ON DELETE CASCADE,
+        opening REAL NOT NULL DEFAULT 0,
+        closing REAL NOT NULL DEFAULT 0,
+        sale_liters REAL NOT NULL DEFAULT 0,
+        rate REAL NOT NULL DEFAULT 0,
+        amount REAL NOT NULL DEFAULT 0
+      );
+    `);
+
+    // 4m. Alert Settings Table (WhatsApp Auto Alerts)
+    await tursoClient.execute(`
+      CREATE TABLE IF NOT EXISTS alert_settings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pump_id INTEGER NOT NULL UNIQUE REFERENCES pumps(id) ON DELETE CASCADE DEFAULT 1,
+        low_stock_alert INTEGER NOT NULL DEFAULT 1,
+        low_stock_percent INTEGER NOT NULL DEFAULT 20,
+        daily_report_alert INTEGER NOT NULL DEFAULT 1,
+        owner_phone TEXT DEFAULT '923001234567',
+        updated_at TEXT
+      );
+    `);
+
+    // Ensure expenses table has all V2 columns
+    try { await tursoClient.execute("ALTER TABLE expenses ADD COLUMN category TEXT DEFAULT 'other';"); } catch (e) {}
+    try { await tursoClient.execute("ALTER TABLE expenses ADD COLUMN description TEXT;"); } catch (e) {}
+    try { await tursoClient.execute("ALTER TABLE expenses ADD COLUMN bill_image_url TEXT;"); } catch (e) {}
+    try { await tursoClient.execute("ALTER TABLE expenses ADD COLUMN created_by TEXT;"); } catch (e) {}
+    try { await tursoClient.execute("ALTER TABLE expenses ADD COLUMN created_at TEXT;"); } catch (e) {}
+    try { await tursoClient.execute("UPDATE expenses SET category = 'other' WHERE category IS NULL;"); } catch (e) {}
+    try { await tursoClient.execute("UPDATE expenses SET description = note WHERE description IS NULL;"); } catch (e) {}
+
     // Performance Indexes for Sub-Millisecond Queries
     try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_dip_var_tank_date ON dip_variations(tank_id, pump_id, date);"); } catch (e) {}
     try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_stock_logs_tank_date ON stock_logs(tank_id, pump_id, date);"); } catch (e) {}
@@ -478,6 +534,10 @@ export async function GET() {
     try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_fuel_rates_hist_lookup ON fuel_rates_history(pump_id, product, effective_from);"); } catch (e) {}
     try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_cash_loans_pump ON cash_loans(pump_id, loan_type, status);"); } catch (e) {}
     try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_cash_loan_tx ON cash_loan_transactions(loan_id, pump_id);"); } catch (e) {}
+    try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_expenses_pump_date ON expenses(pump_id, date);"); } catch (e) {}
+    try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_shifts_pump_date ON shifts(pump_id, date);"); } catch (e) {}
+    try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_shift_nozzle_shift ON shift_nozzle_readings(shift_id);"); } catch (e) {}
+    try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_alert_settings_pump ON alert_settings(pump_id);"); } catch (e) {}
 
     // 5. MIGRATION: ADD pump_id TO ALL OPERATIONAL TABLES (DEFAULT 1)
     const tablesToAlter = [

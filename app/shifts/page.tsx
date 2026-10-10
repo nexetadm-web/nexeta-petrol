@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-export default function ExpensesRedirectPage() {
+export default function ShiftsRedirectPage() {
   const router = useRouter();
 
   useEffect(() => {
@@ -11,16 +11,16 @@ export default function ExpensesRedirectPage() {
       .then((res) => res.json())
       .then((data) => {
         const pumpId = data?.session?.pumpId || 1;
-        router.replace(`/dashboard/pump/${pumpId}/expenses`);
+        router.replace(`/dashboard/pump/${pumpId}/shifts`);
       })
       .catch(() => {
-        router.replace("/dashboard/pump/1/expenses");
+        router.replace("/dashboard/pump/1/shifts");
       });
   }, [router]);
 
   return (
     <div className="p-12 text-center text-slate-500 font-medium">
-      اخراجات لوڈ ہو رہے ہیں...
+      شفٹ مینیجمنٹ لوڈ ہو رہا ہے...
     </div>
   );
 }

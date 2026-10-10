@@ -159,9 +159,14 @@ export interface Expense {
   id: number;
   pump_id?: number;
   date: string;
-  type: string;
+  type?: string;
+  category?: "electricity" | "tea" | "repair" | "staff_advance" | "cleaning" | "rent" | "other" | string;
   amount: number;
-  note: string | null;
+  description?: string | null;
+  note?: string | null;
+  bill_image_url?: string | null;
+  created_by?: string | null;
+  created_at?: string | null;
 }
 
 export interface DipChart {
@@ -417,4 +422,45 @@ export interface CashLoanTransaction {
   note?: string | null;
   proof_image_url?: string | null;
   created_at?: string;
+}
+
+export interface Shift {
+  id: number;
+  pump_id: number;
+  shift_name: "Morning" | "Evening" | "Night" | string;
+  start_time: string;
+  end_time?: string | null;
+  staff_id?: number | null;
+  staff_name?: string | null;
+  date: string;
+  opening_cash: number;
+  closing_cash: number;
+  total_sale_liters: number;
+  total_income: number;
+  status: "active" | "closed" | string;
+  created_at?: string;
+  readings?: ShiftNozzleReading[];
+}
+
+export interface ShiftNozzleReading {
+  id: number;
+  shift_id: number;
+  nozzle_id: number;
+  opening: number;
+  closing: number;
+  sale_liters: number;
+  rate?: number;
+  amount?: number;
+  nozzle_name?: string;
+  fuel_type?: string;
+}
+
+export interface AlertSettings {
+  id?: number;
+  pump_id: number;
+  low_stock_alert: boolean | number;
+  low_stock_percent: number;
+  daily_report_alert: boolean | number;
+  owner_phone?: string;
+  updated_at?: string;
 }
