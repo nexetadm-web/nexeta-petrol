@@ -24,7 +24,9 @@ import {
   ShieldCheck,
   Eye,
   LogOut,
-  CreditCard
+  CreditCard,
+  Cpu,
+  CheckCheck
 } from "lucide-react";
 import { RateBanner } from "@/components/RateBanner";
 import { formatRs, formatLitres, getTodayDatePK, formatDate } from "@/lib/formatters";
@@ -419,7 +421,7 @@ export default function StationDashboard() {
           <Sparkles className="w-4 h-4 text-indigo-600" />
           <span>فوری شارٹ کٹس (Quick Station Actions)</span>
         </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-9 gap-3">
           <Link
             href="/readings"
             className="p-3 rounded-xl bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 text-slate-800 hover:text-indigo-900 font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition-all hover:scale-102"
@@ -428,10 +430,31 @@ export default function StationDashboard() {
             <span>نوزل میٹر ریڈنگ</span>
           </Link>
           <Link
-            href="/cash-closing"
+            href="/nozzle-matching"
             className="p-3 rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 text-slate-800 hover:text-emerald-900 font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition-all hover:scale-102"
           >
-            <Wallet className="w-5 h-5 text-emerald-600" />
+            <CheckCheck className="w-5 h-5 text-emerald-600" />
+            <span>نوزل آٹو میچنگ</span>
+          </Link>
+          <Link
+            href="/ai-detector"
+            className="p-3 rounded-xl bg-slate-50 hover:bg-purple-50 border border-slate-200 hover:border-purple-300 text-slate-800 hover:text-purple-900 font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition-all hover:scale-102"
+          >
+            <Cpu className="w-5 h-5 text-purple-600" />
+            <span>AI لیکج ڈیٹیکٹر</span>
+          </Link>
+          <Link
+            href="/parties"
+            className="p-3 rounded-xl bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 text-slate-800 hover:text-amber-900 font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition-all hover:scale-102"
+          >
+            <CreditCard className="w-5 h-5 text-amber-600" />
+            <span>پارٹی لیجر و بل</span>
+          </Link>
+          <Link
+            href="/cash-closing"
+            className="p-3 rounded-xl bg-slate-50 hover:bg-teal-50 border border-slate-200 hover:border-teal-300 text-slate-800 hover:text-teal-900 font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition-all hover:scale-102"
+          >
+            <Wallet className="w-5 h-5 text-teal-600" />
             <span>کیش کلوزنگ (Closing)</span>
           </Link>
           <Link
@@ -443,9 +466,9 @@ export default function StationDashboard() {
           </Link>
           <Link
             href="/udhar-khata"
-            className="p-3 rounded-xl bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 text-slate-800 hover:text-amber-900 font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition-all hover:scale-102"
+            className="p-3 rounded-xl bg-slate-50 hover:bg-orange-50 border border-slate-200 hover:border-orange-300 text-slate-800 hover:text-orange-900 font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition-all hover:scale-102"
           >
-            <BookOpen className="w-5 h-5 text-amber-600" />
+            <BookOpen className="w-5 h-5 text-orange-600" />
             <span>ادھار کھاتہ (Udhar)</span>
           </Link>
           <Link
@@ -457,10 +480,10 @@ export default function StationDashboard() {
           </Link>
           <Link
             href="/employees"
-            className="p-3 rounded-xl bg-slate-50 hover:bg-purple-50 border border-slate-200 hover:border-purple-300 text-slate-800 hover:text-purple-900 font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition-all hover:scale-102"
+            className="p-3 rounded-xl bg-slate-50 hover:bg-violet-50 border border-slate-200 hover:border-violet-300 text-slate-800 hover:text-violet-900 font-bold text-xs flex flex-col items-center justify-center gap-1.5 text-center transition-all hover:scale-102"
           >
-            <Users className="w-5 h-5 text-purple-600" />
-            <span>ملازمین ڈیوٹی روسٹر</span>
+            <Users className="w-5 h-5 text-violet-600" />
+            <span>ملازمین ڈیوٹی</span>
           </Link>
         </div>
       </div>

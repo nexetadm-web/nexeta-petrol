@@ -323,6 +323,96 @@ export async function GET() {
       );
     `);
 
+    // 4b. AI Alerts Table
+    await tursoClient.execute(`
+      CREATE TABLE IF NOT EXISTS ai_alerts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pump_id INTEGER NOT NULL REFERENCES pumps(id) ON DELETE CASCADE DEFAULT 1,
+        tank_id INTEGER NOT NULL REFERENCES tanks(id) ON DELETE CASCADE,
+        alert_type TEXT NOT NULL,
+        avg_loss REAL NOT NULL,
+        days INTEGER NOT NULL DEFAULT 7,
+        severity TEXT NOT NULL DEFAULT 'high',
+        message TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        date TEXT NOT NULL,
+        created_at TEXT
+      );
+    `);
+
+    // 4c. Nozzle Sales Table
+    await tursoClient.execute(`
+      CREATE TABLE IF NOT EXISTS nozzle_sales (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pump_id INTEGER NOT NULL REFERENCES pumps(id) ON DELETE CASCADE DEFAULT 1,
+        tank_id INTEGER NOT NULL REFERENCES tanks(id) ON DELETE CASCADE,
+        nozzle_no TEXT NOT NULL,
+        date TEXT NOT NULL,
+        opening_reading REAL NOT NULL,
+        closing_reading REAL NOT NULL,
+        sale_liters REAL NOT NULL,
+        entered_by TEXT,
+        created_at TEXT
+      );
+    `);
+
+    // 4d. Daily Reconciliation Table
+    await tursoClient.execute(`
+      CREATE TABLE IF NOT EXISTS daily_reconciliation (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pump_id INTEGER NOT NULL REFERENCES pumps(id) ON DELETE CASCADE DEFAULT 1,
+        tank_id INTEGER NOT NULL REFERENCES tanks(id) ON DELETE CASCADE,
+        date TEXT NOT NULL,
+        dip_loss_liters REAL NOT NULL,
+        nozzle_sale_liters REAL NOT NULL,
+        difference REAL NOT NULL,
+        status TEXT NOT NULL DEFAULT 'matched',
+        notes TEXT,
+        created_at TEXT
+      );
+    `);
+
+    // 4e. Parties Table
+    await tursoClient.execute(`
+      CREATE TABLE IF NOT EXISTS parties (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pump_id INTEGER NOT NULL REFERENCES pumps(id) ON DELETE CASCADE DEFAULT 1,
+        name TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        vehicle_no TEXT,
+        balance REAL NOT NULL DEFAULT 0,
+        credit_limit REAL NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TEXT
+      );
+    `);
+
+    // 4f. Party Transactions Table
+    await tursoClient.execute(`
+      CREATE TABLE IF NOT EXISTS party_transactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pump_id INTEGER NOT NULL REFERENCES pumps(id) ON DELETE CASCADE DEFAULT 1,
+        party_id INTEGER NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
+        type TEXT NOT NULL,
+        liters REAL NOT NULL DEFAULT 0,
+        rate REAL NOT NULL DEFAULT 0,
+        amount REAL NOT NULL,
+        date TEXT NOT NULL,
+        description TEXT,
+        created_at TEXT
+      );
+    `);
+
+    // Performance Indexes for Sub-Millisecond Queries
+    try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_dip_var_tank_date ON dip_variations(tank_id, pump_id, date);"); } catch (e) {}
+    try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_stock_logs_tank_date ON stock_logs(tank_id, pump_id, date);"); } catch (e) {}
+    try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_dip_charts_tank ON dip_charts(tank_id, dip_mm);"); } catch (e) {}
+    try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_nozzle_sales_tank_date ON nozzle_sales(tank_id, pump_id, date);"); } catch (e) {}
+    try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_daily_recon_tank_date ON daily_reconciliation(tank_id, pump_id, date);"); } catch (e) {}
+    try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_party_tx_party_date ON party_transactions(party_id, pump_id, date);"); } catch (e) {}
+    try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_parties_pump ON parties(pump_id);"); } catch (e) {}
+    try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_ai_alerts_pump ON ai_alerts(pump_id, tank_id);"); } catch (e) {}
+
     // 5. MIGRATION: ADD pump_id TO ALL OPERATIONAL TABLES (DEFAULT 1)
     const tablesToAlter = [
       "tanks", "nozzles", "daily_rates", "daily_readings", "fuel_purchases",

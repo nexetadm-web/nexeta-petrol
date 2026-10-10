@@ -47,7 +47,7 @@ export async function POST(request: Request) {
     }
 
     if (!match) {
-      return NextResponse.json({ success: false, error: "غلط پاس ورڈ" }, { status: 401 });
+      return NextResponse.json({ success: false, error: "پاسورڈ غلط ہے (Incorrect Password)" }, { status: 401 });
     }
 
     const payload = {

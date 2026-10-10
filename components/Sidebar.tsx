@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { 
   LayoutDashboard, 
   Fuel, 
@@ -19,7 +19,10 @@ import {
   Users,
   Wallet,
   Sliders,
-  ShieldAlert
+  ShieldAlert,
+  Cpu,
+  CheckCheck,
+  CreditCard
 } from "lucide-react";
 
 interface SidebarProps {
@@ -55,6 +58,27 @@ const NAV_ITEMS = [
     href: "/readings",
     icon: Gauge,
     iconColor: "text-blue-600",
+  },
+  {
+    name: "AI Leakage Detector",
+    urdu: "AI لیکج و چوری ڈیٹیکٹر",
+    href: "/ai-detector",
+    icon: Cpu,
+    iconColor: "text-indigo-600",
+  },
+  {
+    name: "Nozzle Matching",
+    urdu: "نوزل میٹر و ڈِپ میچنگ",
+    href: "/nozzle-matching",
+    icon: CheckCheck,
+    iconColor: "text-emerald-600",
+  },
+  {
+    name: "Parties & Fleet",
+    urdu: "پارٹی کھاتہ و واٹس ایپ بل",
+    href: "/parties",
+    icon: CreditCard,
+    iconColor: "text-amber-500",
   },
   {
     name: "Tanks & Dip Chart",
@@ -123,9 +147,17 @@ const NAV_ITEMS = [
 
 export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   useEffect(() => {
+    // Ultra-Fast Route Pre-fetching for sub-millisecond transitions
+    NAV_ITEMS.forEach((item) => {
+      try {
+        router.prefetch(item.href);
+      } catch (e) {}
+    });
+
     fetch("/api/auth/me")
       .then((res) => res.json())
       .then((data) => {
@@ -134,7 +166,7 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
         }
       })
       .catch(() => {});
-  }, []);
+  }, [router]);
 
   return (
     <>

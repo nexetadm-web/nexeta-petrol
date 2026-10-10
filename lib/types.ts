@@ -294,3 +294,76 @@ export interface PumpSettings {
   phone?: string;
   address?: string;
 }
+
+export interface AiAlert {
+  id: number;
+  pump_id: number;
+  tank_id: number;
+  tank_name?: string;
+  product?: string;
+  alert_type: "leakage" | "theft" | "unusual_loss" | "meter_drift" | string;
+  avg_loss: number;
+  days: number;
+  severity: "warning" | "high" | "critical" | string;
+  message: string;
+  status: "active" | "investigating" | "resolved" | string;
+  date: string;
+  created_at?: string;
+}
+
+export interface NozzleSale {
+  id: number;
+  pump_id: number;
+  tank_id: number;
+  tank_name?: string;
+  product?: string;
+  nozzle_no: string;
+  date: string;
+  opening_reading: number;
+  closing_reading: number;
+  sale_liters: number;
+  entered_by?: string;
+  created_at?: string;
+}
+
+export interface DailyReconciliation {
+  id: number;
+  pump_id: number;
+  tank_id: number;
+  tank_name?: string;
+  product?: string;
+  date: string;
+  dip_loss_liters: number;
+  nozzle_sale_liters: number;
+  difference: number;
+  status: "matched" | "mismatch" | string;
+  notes?: string | null;
+  created_at?: string;
+}
+
+export interface Party {
+  id: number;
+  pump_id: number;
+  name: string;
+  phone: string;
+  vehicle_no?: string | null;
+  balance: number;
+  credit_limit: number;
+  status?: string;
+  created_at?: string;
+}
+
+export interface PartyTransaction {
+  id: number;
+  pump_id: number;
+  party_id: number;
+  party_name?: string;
+  phone?: string;
+  type: "credit" | "debit";
+  liters: number;
+  rate: number;
+  amount: number;
+  date: string;
+  description?: string | null;
+  created_at?: string;
+}

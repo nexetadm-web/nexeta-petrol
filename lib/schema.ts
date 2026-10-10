@@ -276,6 +276,76 @@ export const pumpSettings = sqliteTable("pump_settings", {
   value: text("value").notNull(),
 });
 
+// 17. AI Alerts (Leakage & Theft Detection)
+export const aiAlerts = sqliteTable("ai_alerts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
+  tank_id: integer("tank_id").references(() => tanks.id, { onDelete: "cascade" }).notNull(),
+  alert_type: text("alert_type").notNull(), // "leakage" | "theft" | "unusual_loss" | "meter_drift"
+  avg_loss: real("avg_loss").notNull(), // average daily loss in litres
+  days: integer("days").notNull().default(7), // analysis period in days
+  severity: text("severity").notNull().default("high"), // "warning" | "high" | "critical"
+  message: text("message").notNull(),
+  status: text("status").notNull().default("active"), // "active" | "investigating" | "resolved"
+  date: text("date").notNull(),
+  created_at: text("created_at"),
+});
+
+// 18. Nozzle Sales (Daily nozzle meter readings linked to Tank)
+export const nozzleSales = sqliteTable("nozzle_sales", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
+  tank_id: integer("tank_id").references(() => tanks.id, { onDelete: "cascade" }).notNull(),
+  nozzle_no: text("nozzle_no").notNull(), // e.g. "Nozzle 1 (Petrol)"
+  date: text("date").notNull(), // DD-MM-YYYY
+  opening_reading: real("opening_reading").notNull(),
+  closing_reading: real("closing_reading").notNull(),
+  sale_liters: real("sale_liters").notNull(), // closing_reading - opening_reading
+  entered_by: text("entered_by"),
+  created_at: text("created_at"),
+});
+
+// 19. Daily Reconciliation (Tank Dip Loss vs Nozzle Meter Sales)
+export const dailyReconciliation = sqliteTable("daily_reconciliation", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
+  tank_id: integer("tank_id").references(() => tanks.id, { onDelete: "cascade" }).notNull(),
+  date: text("date").notNull(), // DD-MM-YYYY
+  dip_loss_liters: real("dip_loss_liters").notNull(), // drop in physical tank
+  nozzle_sale_liters: real("nozzle_sale_liters").notNull(), // sum of all nozzles linked to this tank
+  difference: real("difference").notNull(), // dip_loss_liters - nozzle_sale_liters
+  status: text("status").notNull().default("matched"), // "matched" | "mismatch"
+  notes: text("notes"),
+  created_at: text("created_at"),
+});
+
+// 20. Parties (Customers & Commercial Fleet Accounts)
+export const parties = sqliteTable("parties", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
+  name: text("name").notNull(),
+  phone: text("phone").notNull(),
+  vehicle_no: text("vehicle_no"),
+  balance: real("balance").notNull().default(0), // Positive = credit owed to pump
+  credit_limit: real("credit_limit").notNull().default(0),
+  status: text("status").notNull().default("active"),
+  created_at: text("created_at"),
+});
+
+// 21. Party Transactions (Credit fuel issue & Payment receiving ledger)
+export const partyTransactions = sqliteTable("party_transactions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
+  party_id: integer("party_id").references(() => parties.id, { onDelete: "cascade" }).notNull(),
+  type: text("type").notNull(), // "credit" (fuel issued) | "debit" (payment received)
+  liters: real("liters").notNull().default(0),
+  rate: real("rate").notNull().default(0),
+  amount: real("amount").notNull(), // PKR
+  date: text("date").notNull(), // DD-MM-YYYY
+  description: text("description"),
+  created_at: text("created_at"),
+});
+
 // ==========================================
 // RELATIONS
 // ==========================================
