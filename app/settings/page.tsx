@@ -11,7 +11,10 @@ import {
   AlertTriangle, 
   RefreshCw,
   Droplet,
-  Pencil
+  Pencil,
+  Building2,
+  Phone,
+  MapPin
 } from "lucide-react";
 import { formatRs, formatLitres } from "@/lib/formatters";
 import { Tank, Nozzle } from "@/lib/types";
@@ -22,6 +25,13 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+
+  // Station Profile State (Dynamic Header)
+  const [stationName, setStationName] = useState("Nexeta Petrol");
+  const [stationPhone, setStationPhone] = useState("0300-1234567");
+  const [stationAddress, setStationAddress] = useState("GT Road, Lahore, Pakistan");
+  const [stationCity, setStationCity] = useState("Lahore");
+  const [savingStation, setSavingStation] = useState(false);
 
   // Low Stock Alert Threshold State
   const [lowStockThreshold, setLowStockThreshold] = useState("20");
@@ -55,15 +65,26 @@ export default function SettingsPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [resTanks, resNozzles, resSettings] = await Promise.all([
+      const [resTanks, resNozzles, resSettings, resPump] = await Promise.all([
         fetch("/api/tanks"),
         fetch("/api/nozzles"),
         fetch("/api/settings"),
+        fetch("/api/pumps/1"),
       ]);
 
       const dataTanks = await resTanks.json();
       const dataNozzles = await resNozzles.json();
       const dataSettings = await resSettings.json();
+
+      if (resPump.ok) {
+        const dataPump = await resPump.json();
+        if (dataPump.pump) {
+          setStationName(dataPump.pump.name || dataPump.pump.pump_name || "Nexeta Petrol");
+          setStationPhone(dataPump.pump.phone || "0300-1234567");
+          setStationAddress(dataPump.pump.address || `${dataPump.pump.city}, Pakistan`);
+          setStationCity(dataPump.pump.city || "Lahore");
+        }
+      }
 
       if (dataSettings.settings?.low_stock_threshold) {
         setLowStockThreshold(dataSettings.settings.low_stock_threshold.toString());
@@ -83,6 +104,31 @@ export default function SettingsPage() {
       setErrorMsg(err.message || "Failed to load tanks and nozzles");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveStation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setSavingStation(true);
+      const res = await fetch("/api/pumps/1", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pump_name: stationName,
+          phone: stationPhone,
+          address: stationAddress,
+          city: stationCity,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update station");
+      setSuccessMsg(`پمپ کا نام "${stationName}" اور تفصیلات کامیابی سے محفوظ ہو گئیں! اب تمام PDF اور رپورٹس میں یہی نام ظاہر ہو گا۔`);
+      setTimeout(() => setSuccessMsg(""), 5000);
+    } catch (err: any) {
+      setErrorMsg(err.message || "Error saving station profile");
+    } finally {
+      setSavingStation(false);
     }
   };
 
@@ -327,6 +373,77 @@ export default function SettingsPage() {
           <span>{errorMsg}</span>
         </div>
       )}
+
+      {/* Station Profile Card (Dynamic Name & Details for Reports & PDF) */}
+      <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-md">
+        <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <span className="p-2 rounded-xl bg-indigo-100 text-indigo-700">
+              <Building2 className="w-5 h-5" />
+            </span>
+            <div>
+              <h3 className="text-base font-black text-slate-900">
+                پٹرول پمپ پروفائل و نام (Station Profile & Dynamic Header)
+              </h3>
+              <p className="text-xs text-slate-500">
+                یہاں درج کردہ نام، پتہ اور فون نمبر خودکار طور پر تمام PDF رپورٹس، ایکسل اور ڈیش بورڈ پر ظاہر ہوں گے
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <form onSubmit={handleSaveStation} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-xs font-black text-slate-700 mb-1">
+              پمپ کا نام (Station Name) *
+            </label>
+            <input
+              type="text"
+              required
+              value={stationName}
+              onChange={(e) => setStationName(e.target.value)}
+              placeholder="مثلاً Test Pump Sillanwali"
+              className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              فون نمبر (Phone)
+            </label>
+            <input
+              type="text"
+              value={stationPhone}
+              onChange={(e) => setStationPhone(e.target.value)}
+              placeholder="0300-1234567"
+              className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              پتہ و شہر (Address & City)
+            </label>
+            <input
+              type="text"
+              value={stationAddress}
+              onChange={(e) => setStationAddress(e.target.value)}
+              placeholder="Sillanwali Road, Sargodha"
+              className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+            />
+          </div>
+
+          <div className="md:col-span-3 flex justify-end">
+            <button
+              type="submit"
+              disabled={savingStation}
+              className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition-all disabled:opacity-50"
+            >
+              {savingStation ? "محفوظ ہو رہا ہے..." : "پمپ پروفائل محفوظ کریں (Save Station Profile)"}
+            </button>
+          </div>
+        </form>
+      </div>
 
       {/* Dynamic Nozzles & Low Stock Threshold Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

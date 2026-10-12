@@ -522,7 +522,30 @@ export async function GET() {
     try { await tursoClient.execute("UPDATE expenses SET category = 'other' WHERE category IS NULL;"); } catch (e) {}
     try { await tursoClient.execute("UPDATE expenses SET description = note WHERE description IS NULL;"); } catch (e) {}
 
+    // 4n. Pump Expenses Table (Advanced Category-Wise Real-Time Analytics & Tracking)
+    await tursoClient.execute(`
+      CREATE TABLE IF NOT EXISTS pump_expenses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pump_id INTEGER NOT NULL REFERENCES pumps(id) ON DELETE CASCADE DEFAULT 1,
+        category TEXT NOT NULL DEFAULT 'office_misc',
+        amount REAL NOT NULL,
+        description TEXT,
+        expense_date TEXT NOT NULL,
+        supplier_name TEXT,
+        bill_no TEXT,
+        payment_method TEXT NOT NULL DEFAULT 'cash',
+        bill_image_url TEXT,
+        created_at TEXT
+      );
+    `);
+
+    // Ensure pumps table has address and logo_url
+    try { await tursoClient.execute("ALTER TABLE pumps ADD COLUMN address TEXT;"); } catch (e) {}
+    try { await tursoClient.execute("ALTER TABLE pumps ADD COLUMN logo_url TEXT;"); } catch (e) {}
+
     // Performance Indexes for Sub-Millisecond Queries
+    try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_pump_exp_pump_date ON pump_expenses(pump_id, expense_date);"); } catch (e) {}
+    try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_pump_exp_pump_cat ON pump_expenses(pump_id, category);"); } catch (e) {}
     try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_dip_var_tank_date ON dip_variations(tank_id, pump_id, date);"); } catch (e) {}
     try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_stock_logs_tank_date ON stock_logs(tank_id, pump_id, date);"); } catch (e) {}
     try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_dip_charts_tank ON dip_charts(tank_id, dip_mm);"); } catch (e) {}
@@ -829,6 +852,30 @@ export async function GET() {
           notes: "Night shift duty scheduled",
         },
       ]);
+    }
+
+    // Seed sample pump_expenses if empty
+    try {
+      const expCountRes = await tursoClient.execute("SELECT count(*) as count FROM pump_expenses WHERE pump_id = 1");
+      const expCount = (expCountRes.rows[0]?.count as number) || 0;
+      if (expCount === 0) {
+        const todayStr = getTodayDatePK();
+        await tursoClient.execute({
+          sql: `INSERT INTO pump_expenses (pump_id, category, amount, description, expense_date, supplier_name, bill_no, payment_method, created_at)
+                VALUES 
+                (1, 'electricity_bill', 145000, 'لیسکو کمرشل تھری فیز بجلی بل', ?, 'LESCO Sub-Division', 'LESCO-98214', 'bank_transfer', datetime('now')),
+                (1, 'staff_salaries', 98000, 'عملہ کی ماہانہ تنخواہیں و ایڈوانس ادائیگی', ?, 'Pump Staff', 'PAY-1002', 'cash', datetime('now')),
+                (1, 'maintenance', 16500, 'نوزل نمبر 2 کی مرمت اور ڈسپنسر کیلیبریشن', ?, 'Tariq Tech Services', 'INV-551', 'cash', datetime('now')),
+                (1, 'oil_lubricants', 48000, 'ہیلکس انجن آئل و بریک آئل سپلائی کارٹن', ?, 'Shell Pakistan Depot', 'SH-7729', 'cheque', datetime('now')),
+                (1, 'rent', 75000, 'پمپ زمین کا ماہانہ کرایہ', ?, 'Landlord Estate', 'RENT-OCT', 'bank_transfer', datetime('now')),
+                (1, 'fuel_purchase', 520000, 'ڈیزل بوئزر انورڈ کسٹم سرچارج و ٹرانسپورٹ کرایہ', ?, 'PSO Logistics', 'PSO-8812', 'bank_transfer', datetime('now')),
+                (1, 'office_misc', 6500, 'سٹاف چائے، چینی، صابن و صفائی میٹریل', ?, 'Al-Madina General Store', 'BILL-331', 'cash', datetime('now')),
+                (1, 'bank_charges', 1250, 'بینک سٹیٹمنٹ فیس و پی او ایس ٹرمینل چارجز', ?, 'HBL Station Branch', 'HBL-TX-99', 'cash', datetime('now'));`,
+          args: [todayStr, todayStr, todayStr, todayStr, todayStr, todayStr, todayStr, todayStr]
+        });
+      }
+    } catch (e) {
+      console.error("pump_expenses seed error:", e);
     }
 
     return NextResponse.json({

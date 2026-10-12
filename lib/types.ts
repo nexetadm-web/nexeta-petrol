@@ -169,6 +169,32 @@ export interface Expense {
   created_at?: string | null;
 }
 
+export type ExpenseCategory =
+  | "fuel_purchase"
+  | "staff_salaries"
+  | "electricity_bill"
+  | "rent"
+  | "maintenance"
+  | "oil_lubricants"
+  | "office_misc"
+  | "bank_charges";
+
+export type PaymentMethod = "cash" | "bank_transfer" | "cheque" | "credit";
+
+export interface PumpExpense {
+  id: number;
+  pump_id: number;
+  category: ExpenseCategory | string;
+  amount: number;
+  description?: string | null;
+  expense_date: string;
+  supplier_name?: string | null;
+  bill_no?: string | null;
+  payment_method: PaymentMethod | string;
+  bill_image_url?: string | null;
+  created_at?: string;
+}
+
 export interface DipChart {
   id: number;
   pump_id?: number;

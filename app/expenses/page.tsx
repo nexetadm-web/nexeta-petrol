@@ -7,15 +7,7 @@ export default function ExpensesRedirectPage() {
   const router = useRouter();
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((res) => res.json())
-      .then((data) => {
-        const pumpId = data?.session?.pumpId || 1;
-        router.replace(`/dashboard/pump/${pumpId}/expenses`);
-      })
-      .catch(() => {
-        router.replace("/dashboard/pump/1/expenses");
-      });
+    router.replace("/dashboard/expenses");
   }, [router]);
 
   return (

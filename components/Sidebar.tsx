@@ -134,8 +134,8 @@ const NAV_ITEMS = [
   },
   {
     name: "Kharcha",
-    urdu: "روزانہ خرچہ جات",
-    href: "/expenses",
+    urdu: "روزانہ خرچہ جات (پمپ اخراجات)",
+    href: "/dashboard/expenses",
     icon: Receipt,
     iconColor: "text-rose-600",
   },

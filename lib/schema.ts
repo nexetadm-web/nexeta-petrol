@@ -13,6 +13,8 @@ export const pumps = sqliteTable("pumps", {
   phone: text("phone").notNull(),
   email: text("email").notNull().unique(),
   city: text("city").notNull(),
+  address: text("address"),
+  logo_url: text("logo_url"),
   cnic: text("cnic"),
   password_hash: text("password_hash").notNull(),
   subscription_status: text("subscription_status").notNull().default("trial"), // "active" | "trial" | "expired"
@@ -169,6 +171,21 @@ export const expenses = sqliteTable("expenses", {
   note: text("note"), // Backwards compatibility
   bill_image_url: text("bill_image_url"),
   created_by: text("created_by"),
+  created_at: text("created_at"),
+});
+
+// 10b. Pump Expenses (Advanced Category-Wise Real-Time Analytics & Tracking)
+export const pumpExpenses = sqliteTable("pump_expenses", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  pump_id: integer("pump_id").references(() => pumps.id, { onDelete: "cascade" }).notNull().default(1),
+  category: text("category").notNull().default("office_misc"), // 'fuel_purchase','staff_salaries','electricity_bill','rent','maintenance','oil_lubricants','office_misc','bank_charges'
+  amount: real("amount").notNull(),
+  description: text("description"),
+  expense_date: text("expense_date").notNull(), // DD-MM-YYYY
+  supplier_name: text("supplier_name"),
+  bill_no: text("bill_no"),
+  payment_method: text("payment_method").notNull().default("cash"), // 'cash','bank_transfer','cheque','credit'
+  bill_image_url: text("bill_image_url"),
   created_at: text("created_at"),
 });
 
