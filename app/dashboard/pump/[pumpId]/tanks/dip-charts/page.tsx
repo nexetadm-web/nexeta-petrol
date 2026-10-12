@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { formatLitres } from "@/lib/formatters";
 import { getStockFromDip, parseDipChartCSV, generateLinearDipChart, DipChartEntry } from "@/lib/stock";
+import DipChartUploader from "@/components/DipChartUploader";
 
 interface TankItem {
   id: number;
@@ -110,11 +111,11 @@ export default function CentralDipChartPage() {
   }, [pumpId, initialTankId]);
 
   // 2. Fetch Chart for Selected Tank
-  useEffect(() => {
-    if (!pumpId || !selectedTankId) return;
+  const fetchChartForTank = (tankId: number | string) => {
+    if (!pumpId || !tankId) return;
     setLoadingChart(true);
     setStatusMessage(null);
-    fetch(`/api/pumps/${pumpId}/tanks/dip-charts?tankId=${selectedTankId}`)
+    fetch(`/api/pumps/${pumpId}/tanks/dip-charts?tankId=${tankId}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
@@ -141,6 +142,12 @@ export default function CentralDipChartPage() {
       })
       .catch((err) => console.error("Failed to load tank dip chart:", err))
       .finally(() => setLoadingChart(false));
+  };
+
+  useEffect(() => {
+    if (selectedTankId) {
+      fetchChartForTank(selectedTankId);
+    }
   }, [pumpId, selectedTankId]);
 
   const currentTank = tanks.find((t) => t.id === selectedTankId);
@@ -744,107 +751,20 @@ export default function CentralDipChartPage() {
           </div>
         )}
 
-        {/* Tab 3: OCR Reader */}
+        {/* Tab 3: Smart OCR Reader */}
         {activeTab === "ocr" && (
-          <div className="p-8 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Left Column: Image Upload & Preview */}
-              <div className="p-6 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
-                <h3 className="font-black text-slate-800 text-base flex items-center gap-2">
-                  <Camera className="w-5 h-5 text-indigo-600" />
-                  <span>کیلیبریشن شیٹ کی تصویر منتخب کریں</span>
-                </h3>
-
-                <input
-                  ref={ocrFileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleOcrImageSelect}
-                  className="hidden"
-                />
-
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => ocrFileInputRef.current?.click()}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs"
-                  >
-                    <Upload className="w-4 h-4" />
-                    <span>تصویر منتخب کریں</span>
-                  </button>
-
-                  {ocrImageSrc && (
-                    <button
-                      type="button"
-                      onClick={handleRunOcr}
-                      disabled={ocrProcessing}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md disabled:opacity-50"
-                    >
-                      <Sparkles className="w-4 h-4" />
-                      <span>{ocrProcessing ? "پڑھ رہا ہے..." : "Tesseract OCR سے ڈیٹا نکالیں"}</span>
-                    </button>
-                  )}
-                </div>
-
-                {ocrImageSrc ? (
-                  <div className="border border-slate-200 rounded-xl overflow-hidden bg-white max-h-96 flex items-center justify-center p-2">
-                    <img
-                      src={ocrImageSrc}
-                      alt="Calibration chart sheet"
-                      className="max-h-80 object-contain mx-auto"
-                    />
-                  </div>
-                ) : (
-                  <div className="p-12 border-2 border-dashed border-slate-300 rounded-xl text-center text-xs text-slate-400">
-                    کوئی تصویر منتخب نہیں ہوئی۔ اپنے کیلیبریشن پیپر کی واضح تصویر اپلوڈ کریں۔
-                  </div>
-                )}
-
-                {ocrProcessing && (
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs font-bold text-indigo-700">
-                      <span>{ocrStatusText}</span>
-                      <span>{ocrProgress}%</span>
-                    </div>
-                    <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
-                      <div
-                        className="bg-indigo-600 h-full transition-all duration-200"
-                        style={{ width: `${ocrProgress}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Right Column: OCR Results Info */}
-              <div className="p-6 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col justify-between">
-                <div className="space-y-4">
-                  <h3 className="font-black text-slate-800 text-base flex items-center gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                    <span>ڈیٹا تصدیق و انٹری گائیڈ</span>
-                  </h3>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    جب آپ &quot;Tesseract OCR سے ڈیٹا نکالیں&quot; پر کلک کرتے ہیں تو سسٹم تصویر میں موجود ملی میٹر اور لیٹرز کے اعداد نکال کر خود بخود ٹیب 1 کے ٹیبل میں درج کر دیتا ہے۔
-                  </p>
-                  <div className="p-3.5 bg-indigo-50 border border-indigo-100 rounded-xl text-xs text-indigo-900 space-y-1">
-                    <strong className="block font-bold">بہترین نتائج کے لیے:</strong>
-                    <div>1. تصویر سیدھی، واضح اور مناسب روشنی میں ہو۔</div>
-                    <div>2. کالم صاف نظر آ رہے ہوں۔</div>
-                    <div>3. ڈیٹا نکلنے کے بعد ٹیب 1 میں جا کر ایک بار چیک کر لیں۔</div>
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-slate-200">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab("manual")}
-                    className="w-full py-2.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 font-bold text-xs rounded-xl shadow-2xs"
-                  >
-                    ٹیبل میں ڈیٹا کا جائزہ لیں
-                  </button>
-                </div>
-              </div>
-            </div>
+          <div className="p-4 sm:p-6">
+            <DipChartUploader
+              pumpId={pumpId}
+              tankId={selectedTankId || undefined}
+              tankName={currentTank?.tank_name}
+              product={currentTank?.product}
+              capacityLiters={currentTank?.capacity_liters}
+              tanksList={tanks}
+              onSaved={() => {
+                if (selectedTankId) fetchChartForTank(Number(selectedTankId));
+              }}
+            />
           </div>
         )}
       </div>

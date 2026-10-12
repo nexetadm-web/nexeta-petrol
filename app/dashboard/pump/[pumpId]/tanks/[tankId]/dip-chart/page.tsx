@@ -20,7 +20,8 @@ import {
   ArrowLeft,
   FileSpreadsheet,
   Gauge,
-  Droplets
+  Droplets,
+  Camera
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -33,6 +34,7 @@ import {
 } from "recharts";
 import { formatLitres } from "@/lib/formatters";
 import { generateLinearDipChart, parseDipChartCSV, DipChartEntry } from "@/lib/stock";
+import DipChartUploader from "@/components/DipChartUploader";
 
 export default function TankDipChartPage() {
   const params = useParams();
@@ -45,7 +47,7 @@ export default function TankDipChartPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<"manual" | "csv" | "auto">("manual");
+  const [activeTab, setActiveTab] = useState<"manual" | "csv" | "auto" | "ocr">("manual");
 
   // File Upload Ref
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -345,6 +347,16 @@ export default function TankDipChartPage() {
           <Wand2 className="w-3.5 h-3.5" />
           <span>Option C: لینیئر آٹو جنریٹ (Auto Generate)</span>
         </button>
+
+        <button
+          onClick={() => setActiveTab("ocr")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            activeTab === "ocr" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          <Camera className="w-3.5 h-3.5 text-rose-600" />
+          <span>Option D: کیمرے / تصویر سے پڑھیں (Smart OCR)</span>
+        </button>
       </div>
 
       {/* Tab B: Bulk CSV Action Area */}
@@ -415,7 +427,28 @@ export default function TankDipChartPage() {
         </div>
       )}
 
+      {/* Tab D: Smart OCR / Image Calibration Reader */}
+      {activeTab === "ocr" && (
+        <div className="print:hidden">
+          <DipChartUploader
+            pumpId={pumpId}
+            tankId={tankId}
+            tankName={tank?.tank_name}
+            product={tank?.product}
+            capacityLiters={tank?.capacity_liters}
+            onSaved={async (count) => {
+              setFeedback({
+                type: "success",
+                msg: `تصدیق شدہ ڈِپ چارٹ (${count} پوائنٹس) کامیابی سے محفوظ ہو گیا!`,
+              });
+              await fetchChart();
+            }}
+          />
+        </div>
+      )}
+
       {/* Table Section: Displays Rows for Manual Entry and Print Output */}
+      {activeTab !== "ocr" && (
       <div className="bg-white rounded-3xl border border-slate-200 shadow-md p-6">
         <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4 print:hidden">
           <div>
@@ -534,6 +567,7 @@ export default function TankDipChartPage() {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

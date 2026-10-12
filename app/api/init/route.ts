@@ -52,6 +52,12 @@ export async function GET() {
     // Ensure dip_charts has dip_mm and volume_liters
     try { await tursoClient.execute("ALTER TABLE dip_charts ADD COLUMN dip_mm REAL;"); } catch (e) {}
     try { await tursoClient.execute("ALTER TABLE dip_charts ADD COLUMN volume_liters REAL;"); } catch (e) {}
+    try { await tursoClient.execute("ALTER TABLE dip_charts ADD COLUMN chart_data TEXT;"); } catch (e) {}
+    try { await tursoClient.execute("ALTER TABLE dip_charts ADD COLUMN source_type TEXT DEFAULT 'image_ocr';"); } catch (e) {}
+    try { await tursoClient.execute("ALTER TABLE dip_charts ADD COLUMN original_image_url TEXT;"); } catch (e) {}
+    try { await tursoClient.execute("ALTER TABLE dip_charts ADD COLUMN is_verified INTEGER DEFAULT 1;"); } catch (e) {}
+    try { await tursoClient.execute("ALTER TABLE dip_charts ADD COLUMN created_at TEXT;"); } catch (e) {}
+    try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_dip_charts_pump_tank ON dip_charts(pump_id, tank_id);"); } catch (e) {}
     try { await tursoClient.execute("UPDATE dip_charts SET dip_mm = dip_value WHERE dip_mm IS NULL;"); } catch (e) {}
     try { await tursoClient.execute("UPDATE dip_charts SET volume_liters = litres WHERE volume_liters IS NULL;"); } catch (e) {}
 

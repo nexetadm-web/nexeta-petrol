@@ -490,3 +490,24 @@ export interface AlertSettings {
   owner_phone?: string;
   updated_at?: string;
 }
+
+export interface DipVerificationRow {
+  id: string | number;
+  dip_cm: number;
+  volume_litres: number;
+  confidence: number; // 0 - 100
+  flagged?: boolean;
+  raw_text?: string;
+  source?: "ocr" | "vision" | "csv" | "manual";
+}
+
+export interface DipChartCalibration {
+  id?: number;
+  pump_id: number;
+  tank_id: number;
+  chart_data: Array<{ dip_cm: number; volume_litres: number }>;
+  source_type: "image_ocr" | "csv" | "manual";
+  original_image_url?: string | null;
+  is_verified: boolean;
+  created_at?: string;
+}

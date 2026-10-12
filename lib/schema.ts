@@ -200,6 +200,11 @@ export const dipCharts = sqliteTable("dip_charts", {
   unit: text("unit").notNull().default("mm"), // "mm" | "inch" | "cm"
   litres: real("litres").notNull().default(0), // Backwards compatibility
   volume_liters: real("volume_liters"), // Calibrated volume in litres
+  chart_data: text("chart_data"), // JSON array string of { dip_cm, volume_litres }
+  source_type: text("source_type").default("image_ocr"), // 'image_ocr' | 'csv' | 'manual'
+  original_image_url: text("original_image_url"),
+  is_verified: integer("is_verified").default(1),
+  created_at: text("created_at"),
 });
 
 // 11b. Stock Logs Table (Tank-wise daily dip entries & calculated stock)

@@ -41,6 +41,20 @@ export async function GET(
       .filter((r) => !isNaN(r.dip_mm) && !isNaN(r.volume_liters))
       .sort((a, b) => a.dip_mm - b.dip_mm);
 
+    const firstRowWithMeta = rawRows.find((r) => (r as any).chart_data);
+    let chartDataParsed = null;
+    if (firstRowWithMeta && (firstRowWithMeta as any).chart_data) {
+      try {
+        chartDataParsed = JSON.parse((firstRowWithMeta as any).chart_data);
+      } catch (e) {}
+    }
+    if (!chartDataParsed && rows.length > 0) {
+      chartDataParsed = rows.map((r) => ({
+        dip_cm: Math.round(r.dip_mm / 10),
+        volume_litres: r.volume_liters,
+      }));
+    }
+
     return NextResponse.json({
       success: true,
       tank: {
@@ -52,8 +66,12 @@ export async function GET(
         tank_height_mm: tank.tank_height_mm || 2500,
         current_dip_mm: tank.current_dip_mm || 0,
         current_stock_liters: tank.current_stock_liters || tank.current_stock,
+        dip_chart_image_url: tank.dip_chart_image_url || (firstRowWithMeta as any)?.original_image_url || null,
       },
       chart: rows,
+      chart_data: chartDataParsed || [],
+      source_type: (firstRowWithMeta as any)?.source_type || "image_ocr",
+      is_verified: (firstRowWithMeta as any)?.is_verified === 1,
     });
   } catch (error: any) {
     console.error("GET dip chart error:", error);
@@ -83,7 +101,10 @@ export async function POST(
     }
 
     const body = await request.json();
-    const rowsInput: DipChartEntry[] = body.rows || [];
+    const rowsInput = body.rows || body.chart_data || [];
+    const sourceType = body.source_type || "image_ocr";
+    const originalImageUrl = body.original_image_url || body.image_url || tank.dip_chart_image_url || null;
+    const isVerified = body.is_verified ?? true;
 
     if (!Array.isArray(rowsInput) || rowsInput.length === 0) {
       return NextResponse.json(
@@ -92,21 +113,38 @@ export async function POST(
       );
     }
 
-    // Clean & sort rows
-    const cleaned: DipChartEntry[] = rowsInput
-      .map((r) => ({
-        dip_mm: Number(r.dip_mm),
-        volume_liters: Number(r.volume_liters),
-      }))
+    // Normalize rows: support dip_cm and dip_mm
+    const normalized = rowsInput
+      .map((r: any) => {
+        let dipMm = r.dip_mm;
+        let dipCm = r.dip_cm;
+        const vol = r.volume_litres ?? r.volume_liters ?? r.litres ?? 0;
+        if (dipMm === undefined && dipCm !== undefined) {
+          dipMm = Number(dipCm) * 10;
+        } else if (dipCm === undefined && dipMm !== undefined) {
+          dipCm = Number(dipMm) / 10;
+        }
+        return {
+          dip_mm: Number(dipMm),
+          dip_cm: Number(dipCm),
+          volume_liters: Number(vol),
+          volume_litres: Number(vol),
+        };
+      })
       .filter((r) => !isNaN(r.dip_mm) && !isNaN(r.volume_liters) && r.dip_mm >= 0 && r.volume_liters >= 0)
       .sort((a, b) => a.dip_mm - b.dip_mm);
 
     // Remove duplicates by dip_mm (keep last)
-    const map = new Map<number, number>();
-    cleaned.forEach((r) => map.set(r.dip_mm, r.volume_liters));
-    const uniqueRows: DipChartEntry[] = Array.from(map.entries())
-      .map(([dip_mm, volume_liters]) => ({ dip_mm, volume_liters }))
-      .sort((a, b) => a.dip_mm - b.dip_mm);
+    const map = new Map<number, { dip_mm: number; dip_cm: number; volume_liters: number }>();
+    normalized.forEach((r) => map.set(r.dip_mm, r));
+    const uniqueRows = Array.from(map.values()).sort((a, b) => a.dip_mm - b.dip_mm);
+
+    // Format chart_data JSON
+    const chartDataArray = uniqueRows.map((r) => ({
+      dip_cm: r.dip_cm,
+      volume_litres: r.volume_liters,
+    }));
+    const chartDataJson = JSON.stringify(chartDataArray);
 
     // Replace existing chart for this tank
     await db.delete(dipCharts).where(eq(dipCharts.tank_id, tankId));
@@ -118,11 +156,16 @@ export async function POST(
         pump_id: pumpId,
         tank_id: tankId,
         fuel_type: product,
-        dip_value: r.dip_mm,
+        dip_value: r.dip_cm,
         dip_mm: r.dip_mm,
         unit: "mm",
         litres: r.volume_liters,
         volume_liters: r.volume_liters,
+        chart_data: chartDataJson,
+        source_type: sourceType,
+        original_image_url: originalImageUrl,
+        is_verified: isVerified ? 1 : 0,
+        created_at: new Date().toISOString(),
       });
     }
 
@@ -141,7 +184,7 @@ export async function POST(
       .update(tanks)
       .set({
         has_dip_chart: 1,
-        dip_chart_image_url: body.image_url || tank.dip_chart_image_url,
+        dip_chart_image_url: originalImageUrl,
         current_stock: updatedStock,
         current_stock_liters: updatedStock,
       })

@@ -25,7 +25,8 @@ import {
   CreditCard,
   Scale,
   Clock,
-  BellRing
+  BellRing,
+  Camera
 } from "lucide-react";
 
 interface SidebarProps {
@@ -91,11 +92,25 @@ const NAV_ITEMS = [
     iconColor: "text-indigo-600",
   },
   {
+    name: "Smart Dip Reader",
+    urdu: "سمارٹ ڈِپ فوٹو ریڈر",
+    href: "/dashboard/dip-chart/upload",
+    icon: Camera,
+    iconColor: "text-rose-600",
+  },
+  {
+    name: "Daily Dip Entry",
+    urdu: "روزانہ ڈِپ بمقابلہ لیٹرز",
+    href: "/dashboard/daily-dip",
+    icon: Droplets,
+    iconColor: "text-cyan-600",
+  },
+  {
     name: "Tank Khata (Dip)",
     urdu: "روزانہ ٹینک کھاتہ و ڈپ",
     href: "/tank-khata",
     icon: Droplets,
-    iconColor: "text-cyan-600",
+    iconColor: "text-blue-600",
   },
   {
     name: "Employee Duty",
