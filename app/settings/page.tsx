@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { formatRs, formatLitres } from "@/lib/formatters";
 import { Tank, Nozzle } from "@/lib/types";
+import { saveRateLocal, getSavedRateLocal, formatLastUpdatedText } from "@/lib/store/rates";
 
 export default function SettingsPage() {
   const [tanksList, setTanksList] = useState<any[]>([]);
@@ -25,6 +26,14 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+
+  // Fuel Rates State (Petrol, Diesel, HiOctane)
+  const [petrolRate, setPetrolRate] = useState("290.50");
+  const [dieselRate, setDieselRate] = useState("280.30");
+  const [hioctaneRate, setHioctaneRate] = useState("300.00");
+  const [rateEffectiveDate, setRateEffectiveDate] = useState(new Date().toISOString().split("T")[0]);
+  const [savingRates, setSavingRates] = useState(false);
+  const [lastRateUpdated, setLastRateUpdated] = useState("");
 
   // Station Profile State (Dynamic Header)
   const [stationName, setStationName] = useState("Nexeta Petrol");
@@ -65,16 +74,39 @@ export default function SettingsPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [resTanks, resNozzles, resSettings, resPump] = await Promise.all([
+      const [resTanks, resNozzles, resSettings, resPump, resRates] = await Promise.all([
         fetch("/api/tanks"),
         fetch("/api/nozzles"),
         fetch("/api/settings"),
         fetch("/api/pumps/1"),
+        fetch("/api/rates").catch(() => null),
       ]);
 
       const dataTanks = await resTanks.json();
       const dataNozzles = await resNozzles.json();
       const dataSettings = await resSettings.json();
+
+      if (resRates && resRates.ok) {
+        try {
+          const dataRates = await resRates.json();
+          if (dataRates.rate) {
+            if (dataRates.rate.petrol_rate) setPetrolRate(dataRates.rate.petrol_rate.toString());
+            if (dataRates.rate.diesel_rate) setDieselRate(dataRates.rate.diesel_rate.toString());
+            if (dataRates.rate.hioctane_rate) setHioctaneRate(dataRates.rate.hioctane_rate.toString());
+            if (dataRates.rate.updated_at || dataRates.rate.date) {
+              setLastRateUpdated(formatLastUpdatedText(dataRates.rate.updated_at || dataRates.rate.date));
+            }
+          }
+        } catch {}
+      } else {
+        const local = getSavedRateLocal();
+        if (local) {
+          setPetrolRate(local.petrol_rate.toString());
+          setDieselRate(local.diesel_rate.toString());
+          setHioctaneRate(local.hioctane_rate.toString());
+          setLastRateUpdated(formatLastUpdatedText(local.updated_at || local.date));
+        }
+      }
 
       if (resPump.ok) {
         const dataPump = await resPump.json();
@@ -104,6 +136,49 @@ export default function SettingsPage() {
       setErrorMsg(err.message || "Failed to load tanks and nozzles");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveRates = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const p = parseFloat(petrolRate);
+    const d = parseFloat(dieselRate);
+    const h = parseFloat(hioctaneRate);
+    if (isNaN(p) || isNaN(d)) {
+      alert("براہ کرم درست ریٹ درج کریں");
+      return;
+    }
+    try {
+      setSavingRates(true);
+      setErrorMsg("");
+      const res = await fetch("/api/rates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: rateEffectiveDate || new Date().toISOString().split("T")[0],
+          petrol_rate: p,
+          diesel_rate: d,
+          hioctane_rate: isNaN(h) ? 0 : h,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Failed to save rates");
+
+      // Save to localStorage + dispatch event
+      saveRateLocal({
+        petrol_rate: p,
+        diesel_rate: d,
+        hioctane_rate: isNaN(h) ? 0 : h,
+        date: rateEffectiveDate || new Date().toISOString().split("T")[0],
+      });
+
+      setSuccessMsg(`فیول ریٹس کامیابی سے محفوظ ہو گئے! پٹرول: Rs. ${p} | ڈیزل: Rs. ${d} (اب تمام شفٹس اور ڈیش بورڈ میں یہی ریٹ لاگو ہے)`);
+      setLastRateUpdated(formatLastUpdatedText(new Date()));
+      setTimeout(() => setSuccessMsg(""), 5000);
+    } catch (err: any) {
+      setErrorMsg(err.message || "Error saving fuel rates");
+    } finally {
+      setSavingRates(false);
     }
   };
 
@@ -440,6 +515,114 @@ export default function SettingsPage() {
               className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition-all disabled:opacity-50"
             >
               {savingStation ? "محفوظ ہو رہا ہے..." : "پمپ پروفائل محفوظ کریں (Save Station Profile)"}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* Fuel Rates Card */}
+      <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-md">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 mb-4 border-b border-slate-100 gap-2">
+          <div className="flex items-center gap-2">
+            <span className="p-2 rounded-xl bg-emerald-100 text-emerald-700">
+              <Fuel className="w-5 h-5" />
+            </span>
+            <div>
+              <h3 className="text-base font-black text-slate-900">
+                روزانہ فیول ریٹس (Daily Fuel Prices & Rates Configuration)
+              </h3>
+              <p className="text-xs text-slate-500">
+                یہاں مقرر کردہ ریٹس ڈیش بورڈ، شفٹ کلوزنگ، نوزل میٹر اور تمام انوائسز میں فوری طور پر لاگو ہوں گے
+              </p>
+            </div>
+          </div>
+          {lastRateUpdated && (
+            <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200 self-start sm:self-auto">
+              آخری تبدیلی: {lastRateUpdated}
+            </span>
+          )}
+        </div>
+
+        <form onSubmit={handleSaveRates} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-xs font-black text-emerald-800 mb-1">
+                پٹرول ریٹ فی لیٹر (Petrol Rs/L) *
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  value={petrolRate}
+                  onChange={(e) => setPetrolRate(e.target.value)}
+                  placeholder="310.00"
+                  className="w-full px-3 py-2 rounded-xl border border-emerald-300 bg-emerald-50/40 text-sm font-mono font-black text-slate-900 focus:outline-none focus:border-emerald-600 text-right"
+                />
+              </div>
+              <span className="text-[10px] text-slate-400 font-medium">Standard Motor Gasoline</span>
+            </div>
+
+            <div>
+              <label className="block text-xs font-black text-amber-800 mb-1">
+                ڈیزل ریٹ فی لیٹر (HSD / Diesel Rs/L) *
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  value={dieselRate}
+                  onChange={(e) => setDieselRate(e.target.value)}
+                  placeholder="295.00"
+                  className="w-full px-3 py-2 rounded-xl border border-amber-300 bg-amber-50/40 text-sm font-mono font-black text-slate-900 focus:outline-none focus:border-amber-600 text-right"
+                />
+              </div>
+              <span className="text-[10px] text-slate-400 font-medium">High Speed Diesel</span>
+            </div>
+
+            <div>
+              <label className="block text-xs font-black text-blue-800 mb-1">
+                ہائی اوکٹین / سپر (HiOctane / Super Rs/L)
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  step="0.01"
+                  value={hioctaneRate}
+                  onChange={(e) => setHioctaneRate(e.target.value)}
+                  placeholder="320.00"
+                  className="w-full px-3 py-2 rounded-xl border border-blue-300 bg-blue-50/40 text-sm font-mono font-black text-slate-900 focus:outline-none focus:border-blue-600 text-right"
+                />
+              </div>
+              <span className="text-[10px] text-slate-400 font-medium">HOBC / Premium Octane</span>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                تاریخ نفاذ (Effective Date)
+              </label>
+              <input
+                type="date"
+                value={rateEffectiveDate}
+                onChange={(e) => setRateEffectiveDate(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-indigo-600"
+              />
+              <span className="text-[10px] text-slate-400 font-medium">Rate applies from this date</span>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
+            <div className="text-xs text-slate-500 font-medium flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>ریٹ محفوظ کرنے سے تمام نوزلز اور موجودہ شفٹ پر نیا ریٹ فوری لاگو ہو جائے گا</span>
+            </div>
+            <button
+              type="submit"
+              disabled={savingRates}
+              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs shadow-md transition-all disabled:opacity-50 hover:shadow-lg"
+            >
+              {savingRates ? "محفوظ ہو رہا ہے..." : "فیول ریٹس محفوظ کریں (Save Fuel Rates)"}
             </button>
           </div>
         </form>

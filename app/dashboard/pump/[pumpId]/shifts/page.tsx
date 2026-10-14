@@ -27,6 +27,7 @@ import {
   calculateMultiNozzleShift,
   validateShiftReadings,
 } from "@/lib/calculations/shift-calculation";
+import { getSavedRateLocal } from "@/lib/store/rates";
 
 export default function PumpShiftsPage() {
   const params = useParams();
@@ -43,6 +44,24 @@ export default function PumpShiftsPage() {
   const [successMsg, setSuccessMsg] = useState<string>("");
 
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDatePK());
+
+  // Dynamic Fuel Rates (From Dashboard / DB / localStorage)
+  const [petrolRate, setPetrolRate] = useState<number>(() => {
+    if (typeof window === "undefined") return 290.50;
+    const local = getSavedRateLocal();
+    return local?.petrol_rate || 290.50;
+  });
+  const [dieselRate, setDieselRate] = useState<number>(() => {
+    if (typeof window === "undefined") return 285.00;
+    const local = getSavedRateLocal();
+    return local?.diesel_rate || 285.00;
+  });
+  const [hioctaneRate, setHioctaneRate] = useState<number>(() => {
+    if (typeof window === "undefined") return 300.00;
+    const local = getSavedRateLocal();
+    return local?.hioctane_rate || 300.00;
+  });
+  const [nozzleRateInputs, setNozzleRateInputs] = useState<Record<number, string>>({});
 
   // Start Shift Modal
   const [showStartModal, setShowStartModal] = useState<boolean>(false);
@@ -63,15 +82,69 @@ export default function PumpShiftsPage() {
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
   const [closeAuditResult, setCloseAuditResult] = useState<any | null>(null);
 
+  // Helper to dynamically get rate per nozzle based on product type or custom edit
+  const getProductRate = (nozzle: any): number => {
+    const product = (nozzle.product || nozzle.fuel_type || "").toLowerCase();
+    if (product.includes("hsd") || product.includes("diesel")) return dieselRate;
+    if (product.includes("hioctane") || product.includes("hobc") || product.includes("super")) return hioctaneRate;
+    return petrolRate;
+  };
+
+  const getRateForNozzle = (nozzle: any): number => {
+    const nozzleId = nozzle.nozzle_id ?? nozzle.id;
+    if (nozzleRateInputs[nozzleId] !== undefined && nozzleRateInputs[nozzleId] !== "") {
+      const parsed = parseFloat(nozzleRateInputs[nozzleId]);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+    return getProductRate(nozzle);
+  };
+
+  // Listen for realtime rates update from dashboard or settings
+  useEffect(() => {
+    const handleRatesUpdated = (e: any) => {
+      const detail = e.detail;
+      if (detail) {
+        if (detail.petrol_rate) setPetrolRate(Number(detail.petrol_rate));
+        if (detail.diesel_rate) setDieselRate(Number(detail.diesel_rate));
+        if (detail.hioctane_rate) setHioctaneRate(Number(detail.hioctane_rate));
+      }
+    };
+    if (typeof window !== "undefined") {
+      window.addEventListener("nexeta_rates_updated", handleRatesUpdated);
+      return () => window.removeEventListener("nexeta_rates_updated", handleRatesUpdated);
+    }
+  }, []);
+
   const fetchShiftsData = async () => {
     try {
       setLoading(true);
       setErrorMsg("");
-      const res = await fetch(`/api/pumps/${pumpId}/shifts?date=${selectedDate}`);
-      const data = await res.json();
-      if (!res.ok || !data.success) {
+      const [resShifts, resRates] = await Promise.all([
+        fetch(`/api/pumps/${pumpId}/shifts?date=${selectedDate}`),
+        fetch(`/api/rates?date=${selectedDate}`).catch(() => null),
+      ]);
+
+      const data = await resShifts.json();
+      if (!resShifts.ok || !data.success) {
         throw new Error(data.error || "Failed to load shifts data");
       }
+
+      // Update dynamic fuel rates from API or localStorage
+      if (resRates && resRates.ok) {
+        try {
+          const ratesData = await resRates.json();
+          if (ratesData.success && ratesData.rate) {
+            if (ratesData.rate.petrol_rate) setPetrolRate(Number(ratesData.rate.petrol_rate));
+            if (ratesData.rate.diesel_rate) setDieselRate(Number(ratesData.rate.diesel_rate));
+            if (ratesData.rate.hioctane_rate) setHioctaneRate(Number(ratesData.rate.hioctane_rate));
+          }
+        } catch {}
+      } else if (data.rates) {
+        if (data.rates.petrol_rate) setPetrolRate(Number(data.rates.petrol_rate));
+        if (data.rates.diesel_rate) setDieselRate(Number(data.rates.diesel_rate));
+        if (data.rates.hioctane_rate) setHioctaneRate(Number(data.rates.hioctane_rate));
+      }
+
       setActiveShift(data.activeShift);
       setShiftsHistory(data.shifts || []);
       setStaffList(data.staff || []);
@@ -173,6 +246,7 @@ export default function PumpShiftsPage() {
     const readingsPayload = (activeShift.readings || []).map((r: any) => ({
       nozzle_id: r.nozzle_id,
       closing: parseFloat(nozzleClosingInputs[r.nozzle_id] ?? r.opening) || r.opening,
+      rate: getRateForNozzle(r),
     }));
 
     try {
@@ -254,6 +328,20 @@ export default function PumpShiftsPage() {
             </button>
           )}
         </div>
+      </div>
+
+      {/* Current Rates Banner */}
+      <div className="bg-blue-50 border border-blue-200 text-blue-900 p-2.5 sm:p-3 rounded-2xl text-xs sm:text-sm font-bold flex flex-wrap items-center justify-between gap-2 shadow-xs">
+        <div className="flex items-center gap-2">
+          <Fuel className="w-4 h-4 text-blue-600 shrink-0" />
+          <span>Current Rates: Petrol Rs. {petrolRate.toFixed(2)} | HSD Rs. {dieselRate.toFixed(2)} {hioctaneRate > 0 ? `| Super Rs. ${hioctaneRate.toFixed(2)}` : ""} (from Dashboard)</span>
+        </div>
+        <a
+          href="/settings"
+          className="text-[11px] font-bold text-blue-700 underline hover:text-blue-900"
+        >
+          ریٹ تبدیل کریں (Change Rates)
+        </a>
       </div>
 
       {/* Messages */}
@@ -616,7 +704,7 @@ export default function PumpShiftsPage() {
           const currentClose = parseFloat(nozzleClosingInputs[r.nozzle_id] ?? r.opening);
           const startVal = parseFloat(r.opening) || 0;
           const endVal = isNaN(currentClose) ? startVal : currentClose;
-          const appliedRate = parseFloat(r.rate) || (r.fuel_type === "Diesel" ? 280.30 : r.fuel_type === "HiOctane" ? 300.00 : 290.50);
+          const appliedRate = getRateForNozzle(r);
           return {
             nozzle_id: r.nozzle_id,
             nozzle_name: r.nozzle_name,
@@ -655,6 +743,12 @@ export default function PumpShiftsPage() {
                 </button>
               </div>
 
+              {/* Current Rates Badge in Shift Close Modal */}
+              <div className="bg-blue-50 border border-blue-200 text-blue-900 p-2.5 rounded-xl text-xs font-bold flex items-center justify-between mb-4 shadow-2xs">
+                <span>Current Rates: Petrol Rs. {petrolRate.toFixed(2)} | HSD Rs. {dieselRate.toFixed(2)} (from Dashboard)</span>
+                <span className="text-[10px] text-blue-600 font-semibold">ریٹ نوزل کے لحاظ سے ایڈٹ بھی کر سکتے ہیں</span>
+              </div>
+
               {errorMsg && (
                 <div className="p-3 mb-4 rounded-xl bg-rose-50 border border-rose-300 text-rose-800 text-xs font-bold flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
@@ -666,56 +760,71 @@ export default function PumpShiftsPage() {
                 {/* 1. Nozzle Closings Inputs with Live Calculation */}
                 <div>
                   <label className="block text-xs font-black text-slate-800 uppercase mb-2">
-                    1. نوزل کلوزنگ میٹر ریڈنگز (Closing Meter Readings):
+                    1. نوزل کلوزنگ میٹر ریڈنگز اور فیول ریٹ (Closing Readings & Rate):
                   </label>
                   <div className="space-y-3 border border-slate-200 rounded-2xl p-3 bg-slate-50">
                     {activeShift.readings?.map((r: any) => {
                       const startVal = parseFloat(r.opening) || 0;
                       const rawInput = nozzleClosingInputs[r.nozzle_id];
                       const currentClose = rawInput !== undefined && rawInput !== "" ? parseFloat(rawInput) : startVal;
-                      const appliedRate = parseFloat(r.rate) || (r.fuel_type === "Diesel" ? 280.30 : r.fuel_type === "HiOctane" ? 300.00 : 290.50);
+                      const appliedRate = getRateForNozzle(r);
                       const isEndLess = !isNaN(currentClose) && currentClose < startVal;
                       const diffLiters = parseFloat(Math.max(0, currentClose - startVal).toFixed(2));
                       const lineAmount = parseFloat((diffLiters * appliedRate).toFixed(2));
 
                       return (
-                        <div key={r.id} className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-1.5">
+                        <div key={r.id} className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2">
                           <div className="grid grid-cols-12 gap-2 items-center text-xs">
-                            <div className="col-span-4 font-extrabold text-slate-900 truncate">
+                            <div className="col-span-12 sm:col-span-3 font-extrabold text-slate-900 truncate">
                               {r.nozzle_name || `Nozzle ${r.nozzle_id}`}
                               <span className="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
                                 {r.fuel_type}
                               </span>
                             </div>
-                            <div className="col-span-3 font-mono text-slate-500 text-right">
+                            <div className="col-span-4 sm:col-span-2 font-mono text-slate-500 text-right sm:text-center text-[11px]">
                               اوپننگ: <strong className="text-slate-800">{Number(startVal).toLocaleString()}</strong>
                             </div>
-                            <div className="col-span-5">
-                              <div className="relative">
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  required
-                                  placeholder={startVal.toString()}
-                                  value={nozzleClosingInputs[r.nozzle_id] ?? ""}
-                                  onChange={(e) =>
-                                    setNozzleClosingInputs({
-                                      ...nozzleClosingInputs,
-                                      [r.nozzle_id]: e.target.value,
-                                    })
-                                  }
-                                  className={`w-full px-3 py-1.5 rounded-xl border text-xs font-mono font-bold text-right focus:outline-none ${
-                                    isEndLess
-                                      ? "border-rose-400 bg-rose-50 text-rose-800 focus:border-rose-600"
-                                      : "border-slate-300 bg-white text-slate-900 focus:border-indigo-600"
-                                  }`}
-                                />
-                              </div>
+                            <div className="col-span-4 sm:col-span-4">
+                              <label className="block text-[10px] text-slate-500 font-bold mb-0.5 text-right">کلوزنگ میٹر</label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                required
+                                placeholder={startVal.toString()}
+                                value={nozzleClosingInputs[r.nozzle_id] ?? ""}
+                                onChange={(e) =>
+                                  setNozzleClosingInputs({
+                                    ...nozzleClosingInputs,
+                                    [r.nozzle_id]: e.target.value,
+                                  })
+                                }
+                                className={`w-full px-3 py-1.5 rounded-xl border text-xs font-mono font-bold text-right focus:outline-none ${
+                                  isEndLess
+                                    ? "border-rose-400 bg-rose-50 text-rose-800 focus:border-rose-600"
+                                    : "border-slate-300 bg-white text-slate-900 focus:border-indigo-600"
+                                }`}
+                              />
+                            </div>
+                            <div className="col-span-4 sm:col-span-3">
+                              <label className="block text-[10px] text-slate-500 font-bold mb-0.5 text-right">ریٹ (Rs)</label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                required
+                                value={nozzleRateInputs[r.nozzle_id] ?? appliedRate.toString()}
+                                onChange={(e) =>
+                                  setNozzleRateInputs((prev) => ({
+                                    ...prev,
+                                    [r.nozzle_id]: e.target.value,
+                                  }))
+                                }
+                                className="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 text-xs font-mono font-bold text-right bg-white text-slate-900 focus:outline-none focus:border-indigo-600"
+                              />
                             </div>
                           </div>
 
                           {/* Live Calculation Display as user types */}
-                          <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] pt-1 border-t border-slate-100">
+                          <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] pt-1.5 border-t border-slate-100">
                             {isEndLess ? (
                               <span className="text-rose-600 font-bold flex items-center gap-1">
                                 ⚠️ End reading start se kam nahi ho sakta ({currentClose} &lt; {startVal})
@@ -885,7 +994,7 @@ export default function PumpShiftsPage() {
           nozzle_id: r.nozzle_id,
           start: r.opening,
           end: parseFloat(nozzleClosingInputs[r.nozzle_id] ?? r.opening) || r.opening,
-          rate: parseFloat(r.rate) || (r.fuel_type === "Diesel" ? 280.30 : r.fuel_type === "HiOctane" ? 300.00 : 290.50),
+          rate: getRateForNozzle(r),
         }));
         const calc = calculateMultiNozzleShift(
           nozzleEntries,

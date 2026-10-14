@@ -6,10 +6,11 @@ import {
   nozzles, 
   tanks, 
   fuelRates, 
+  dailyRates,
   expenses, 
   cashClosings 
 } from "@/lib/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { getTodayDatePK } from "@/lib/formatters";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +30,7 @@ export async function POST(
     const body = await request.json();
     const closingCash = parseFloat(body.closing_cash) || 0;
     const endTime = (body.end_time || "04:00 PM").trim();
-    const submittedReadings: { nozzle_id: number; closing: number }[] = body.readings || [];
+    const submittedReadings: { nozzle_id: number; closing: number; rate?: number }[] = body.readings || [];
 
     // 1. Fetch shift
     const shiftRows = await db
@@ -47,20 +48,41 @@ export async function POST(
       return NextResponse.json({ success: false, error: "یہ شفٹ پہلے ہی بند ہو چکی ہے" }, { status: 400 });
     }
 
-    // 2. Fetch fuel rates for pump
-    const rateRows = await db
-      .select()
-      .from(fuelRates)
-      .where(eq(fuelRates.pump_id, pumpId));
+    // 2. Fetch fuel rates dynamically for pump
+    const [rateRows, dailyRateRows] = await Promise.all([
+      db.select().from(fuelRates).where(eq(fuelRates.pump_id, pumpId)),
+      db.select().from(dailyRates).where(eq(dailyRates.pump_id, pumpId)).orderBy(desc(dailyRates.id)).limit(1),
+    ]);
+
+    const latestDaily = dailyRateRows[0] || null;
+    let petrolRate = latestDaily?.petrol_rate || 0;
+    let dieselRate = latestDaily?.diesel_rate || 0;
+    let hioctaneRate = latestDaily?.hioctane_rate || 0;
+
+    for (const fr of rateRows) {
+      const prod = (fr.product || "").toLowerCase();
+      if ((prod.includes("petrol") || prod.includes("super")) && (!petrolRate || fr.current_rate > 0)) {
+        petrolRate = fr.current_rate;
+      } else if ((prod.includes("diesel") || prod.includes("hsd")) && (!dieselRate || fr.current_rate > 0)) {
+        dieselRate = fr.current_rate;
+      } else if ((prod.includes("hioctane") || prod.includes("hobc")) && (!hioctaneRate || fr.current_rate > 0)) {
+        hioctaneRate = fr.current_rate;
+      }
+    }
+
+    if (!petrolRate) petrolRate = 290.50;
+    if (!dieselRate) dieselRate = 285.00;
+    if (!hioctaneRate) hioctaneRate = 300.00;
 
     const ratesMap: Record<string, number> = {
-      Petrol: 260.0,
-      Diesel: 268.0,
-      Super: 265.0,
-      HOBC: 295.0,
+      Petrol: petrolRate,
+      Diesel: dieselRate,
+      Super: petrolRate,
+      HOBC: hioctaneRate,
+      HiOctane: hioctaneRate,
     };
     rateRows.forEach((r) => {
-      ratesMap[r.product] = r.current_rate;
+      if (r.current_rate > 0) ratesMap[r.product] = r.current_rate;
     });
 
     // 3. Fetch existing shift nozzle readings joined with nozzles and tanks
@@ -85,7 +107,10 @@ export async function POST(
       const closing = matchSub !== undefined ? Number(matchSub.closing) : r.opening;
       const saleLiters = Math.max(0, Math.round((closing - r.opening) * 100) / 100);
       const fuel = r.fuel_type || "Petrol";
-      const appliedRate = ratesMap[fuel] || 260.0;
+      const customRate = matchSub?.rate !== undefined && !isNaN(Number(matchSub.rate)) && Number(matchSub.rate) > 0
+        ? Number(matchSub.rate)
+        : null;
+      const appliedRate = customRate ?? (ratesMap[fuel] || ratesMap["Petrol"] || petrolRate);
       const amount = Math.round(saleLiters * appliedRate * 100) / 100;
 
       totalSaleLiters += saleLiters;
