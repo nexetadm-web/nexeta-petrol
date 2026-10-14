@@ -15,11 +15,18 @@ import {
   Gauge,
   X,
   Calendar,
-  Sparkles,
-  Layers
+  Layers,
+  HelpCircle,
+  ShieldCheck,
+  Sparkles
 } from "lucide-react";
 import { formatRs, formatLitres, getTodayDatePK, formatDate } from "@/lib/formatters";
 import { Shift } from "@/lib/types";
+import {
+  calculateShift,
+  calculateMultiNozzleShift,
+  validateShiftReadings,
+} from "@/lib/calculations/shift-calculation";
 
 export default function PumpShiftsPage() {
   const params = useParams();
@@ -48,9 +55,12 @@ export default function PumpShiftsPage() {
   // Close Shift Modal
   const [showCloseModal, setShowCloseModal] = useState<boolean>(false);
   const [closingCash, setClosingCash] = useState<string>("");
+  const [closingCredit, setClosingCredit] = useState<string>("0");
+  const [closingExpense, setClosingExpense] = useState<string>("0");
   const [closeEndTime, setCloseEndTime] = useState<string>("04:00 PM");
   const [nozzleClosingInputs, setNozzleClosingInputs] = useState<Record<number, string>>({});
   const [closing, setClosing] = useState<boolean>(false);
+  const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
   const [closeAuditResult, setCloseAuditResult] = useState<any | null>(null);
 
   const fetchShiftsData = async () => {
@@ -125,20 +135,44 @@ export default function PumpShiftsPage() {
     }
   };
 
-  // Close Shift Handler
-  const handleCloseShift = async (e: React.FormEvent) => {
+  // Close Shift Handler - Validates and Prompts Confirmation
+  const handleCloseShift = (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeShift) return;
 
+    setErrorMsg("");
+
+    // 1. Validation: nozzle_end must be >= nozzle_start
+    for (const r of (activeShift.readings || [])) {
+      const currentClose = parseFloat(nozzleClosingInputs[r.nozzle_id] ?? r.opening);
+      const validation = validateShiftReadings(r.opening, currentClose);
+      if (!validation.valid) {
+        setErrorMsg(validation.error || "End reading start se kam nahi ho sakta");
+        return;
+      }
+    }
+
     const cCash = parseFloat(closingCash);
     if (isNaN(cCash)) {
-      setErrorMsg("اختتامی کیش (Closing Cash) درج کریں");
+      setErrorMsg("براہ کرم لڑکے سے موصول شدہ کیش (Cash Received) درج کریں");
       return;
     }
 
+    // Open confirm dialog: "Kya calculation theek hai?"
+    setShowConfirmModal(true);
+  };
+
+  // Final Submit execution after confirmation
+  const executeCloseShift = async () => {
+    if (!activeShift) return;
+
+    const cCash = parseFloat(closingCash) || 0;
+    const cred = parseFloat(closingCredit) || 0;
+    const exp = parseFloat(closingExpense) || 0;
+
     const readingsPayload = (activeShift.readings || []).map((r: any) => ({
       nozzle_id: r.nozzle_id,
-      closing: parseFloat(nozzleClosingInputs[r.nozzle_id] || "0") || r.opening,
+      closing: parseFloat(nozzleClosingInputs[r.nozzle_id] ?? r.opening) || r.opening,
     }));
 
     try {
@@ -149,6 +183,8 @@ export default function PumpShiftsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           closing_cash: cCash,
+          credit: cred,
+          expense: exp,
           end_time: closeEndTime,
           readings: readingsPayload,
         }),
@@ -161,6 +197,7 @@ export default function PumpShiftsPage() {
 
       setCloseAuditResult(data.audit);
       setSuccessMsg(data.message || "شفٹ کامیابی سے بند اور آڈٹ ہو گئی!");
+      setShowConfirmModal(false);
       setShowCloseModal(false);
       fetchShiftsData();
     } catch (err: any) {
@@ -573,71 +610,189 @@ export default function PumpShiftsPage() {
       )}
 
       {/* MODAL 2: CLOSE SHIFT */}
-      {showCloseModal && activeShift && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in">
-            <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
-              <div>
-                <h3 className="text-base font-black text-slate-900">
-                  شفٹ بند کریں ({activeShift.shift_name} شفٹ)
-                </h3>
-                <p className="text-xs text-slate-500 font-bold mt-0.5">
-                  انچارج: {activeShift.staff_name} | اوپننگ کیش: {formatRs(activeShift.opening_cash)}
-                </p>
-              </div>
-              <button
-                onClick={() => setShowCloseModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {showCloseModal && activeShift && (() => {
+        // Prepare entries for calculation
+        const nozzleEntries = (activeShift.readings || []).map((r: any) => {
+          const currentClose = parseFloat(nozzleClosingInputs[r.nozzle_id] ?? r.opening);
+          const startVal = parseFloat(r.opening) || 0;
+          const endVal = isNaN(currentClose) ? startVal : currentClose;
+          const appliedRate = parseFloat(r.rate) || (r.fuel_type === "Diesel" ? 280.30 : r.fuel_type === "HiOctane" ? 300.00 : 290.50);
+          return {
+            nozzle_id: r.nozzle_id,
+            nozzle_name: r.nozzle_name,
+            fuel_type: r.fuel_type,
+            start: startVal,
+            end: endVal,
+            rate: appliedRate,
+          };
+        });
 
-            <form onSubmit={handleCloseShift} className="space-y-4">
-              {/* Nozzle Closings Inputs */}
-              <div>
-                <label className="block text-xs font-black text-slate-800 uppercase mb-2">
-                  1. نوزل کلوزنگ میٹر ریڈنگز درج کریں:
-                </label>
-                <div className="space-y-2 border rounded-xl p-3 bg-slate-50">
-                  {activeShift.readings?.map((r: any) => {
-                    const currentClose = parseFloat(nozzleClosingInputs[r.nozzle_id] || "0") || r.opening;
-                    const diffLiters = Math.max(0, currentClose - r.opening);
-                    return (
-                      <div key={r.id} className="grid grid-cols-12 gap-2 items-center text-xs">
-                        <div className="col-span-4 font-bold text-slate-800 truncate">
-                          {r.nozzle_name || `Nozzle ${r.nozzle_id}`} ({r.fuel_type})
-                        </div>
-                        <div className="col-span-3 font-mono text-slate-500 text-right">
-                          اوپن: {Number(r.opening).toLocaleString()}
-                        </div>
-                        <div className="col-span-3">
-                          <input
-                            type="number"
-                            step="0.01"
-                            required
-                            placeholder={r.opening.toString()}
-                            value={nozzleClosingInputs[r.nozzle_id] ?? ""}
-                            onChange={(e) =>
-                              setNozzleClosingInputs({
-                                ...nozzleClosingInputs,
-                                [r.nozzle_id]: e.target.value,
-                              })
-                            }
-                            className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-xs font-mono font-bold text-right bg-white focus:outline-none focus:border-indigo-600"
-                          />
-                        </div>
-                        <div className="col-span-2 font-mono font-bold text-emerald-700 text-right">
-                          {formatLitres(diffLiters)}
-                        </div>
-                      </div>
-                    );
-                  })}
+        const calc = calculateMultiNozzleShift(
+          nozzleEntries,
+          parseFloat(closingCash) || 0,
+          parseFloat(closingCredit) || 0,
+          parseFloat(closingExpense) || 0
+        );
+
+        return (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto animate-in fade-in zoom-in">
+              <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
+                    <Clock className="w-5 h-5 text-indigo-600" />
+                    <span>شفٹ بند اور آڈٹ کریں ({activeShift.shift_name} شفٹ)</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 font-bold mt-0.5">
+                    انچارج: <strong className="text-slate-800">{activeShift.staff_name}</strong> | اوپننگ کیش: <strong className="text-slate-800">{formatRs(activeShift.opening_cash)}</strong>
+                  </p>
                 </div>
+                <button
+                  onClick={() => setShowCloseModal(false)}
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
 
-              {/* End Time & Closing Cash */}
-              <div className="grid grid-cols-2 gap-3">
+              {errorMsg && (
+                <div className="p-3 mb-4 rounded-xl bg-rose-50 border border-rose-300 text-rose-800 text-xs font-bold flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{errorMsg}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleCloseShift} className="space-y-5">
+                {/* 1. Nozzle Closings Inputs with Live Calculation */}
+                <div>
+                  <label className="block text-xs font-black text-slate-800 uppercase mb-2">
+                    1. نوزل کلوزنگ میٹر ریڈنگز (Closing Meter Readings):
+                  </label>
+                  <div className="space-y-3 border border-slate-200 rounded-2xl p-3 bg-slate-50">
+                    {activeShift.readings?.map((r: any) => {
+                      const startVal = parseFloat(r.opening) || 0;
+                      const rawInput = nozzleClosingInputs[r.nozzle_id];
+                      const currentClose = rawInput !== undefined && rawInput !== "" ? parseFloat(rawInput) : startVal;
+                      const appliedRate = parseFloat(r.rate) || (r.fuel_type === "Diesel" ? 280.30 : r.fuel_type === "HiOctane" ? 300.00 : 290.50);
+                      const isEndLess = !isNaN(currentClose) && currentClose < startVal;
+                      const diffLiters = parseFloat(Math.max(0, currentClose - startVal).toFixed(2));
+                      const lineAmount = parseFloat((diffLiters * appliedRate).toFixed(2));
+
+                      return (
+                        <div key={r.id} className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-1.5">
+                          <div className="grid grid-cols-12 gap-2 items-center text-xs">
+                            <div className="col-span-4 font-extrabold text-slate-900 truncate">
+                              {r.nozzle_name || `Nozzle ${r.nozzle_id}`}
+                              <span className="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                                {r.fuel_type}
+                              </span>
+                            </div>
+                            <div className="col-span-3 font-mono text-slate-500 text-right">
+                              اوپننگ: <strong className="text-slate-800">{Number(startVal).toLocaleString()}</strong>
+                            </div>
+                            <div className="col-span-5">
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  required
+                                  placeholder={startVal.toString()}
+                                  value={nozzleClosingInputs[r.nozzle_id] ?? ""}
+                                  onChange={(e) =>
+                                    setNozzleClosingInputs({
+                                      ...nozzleClosingInputs,
+                                      [r.nozzle_id]: e.target.value,
+                                    })
+                                  }
+                                  className={`w-full px-3 py-1.5 rounded-xl border text-xs font-mono font-bold text-right focus:outline-none ${
+                                    isEndLess
+                                      ? "border-rose-400 bg-rose-50 text-rose-800 focus:border-rose-600"
+                                      : "border-slate-300 bg-white text-slate-900 focus:border-indigo-600"
+                                  }`}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Live Calculation Display as user types */}
+                          <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] pt-1 border-t border-slate-100">
+                            {isEndLess ? (
+                              <span className="text-rose-600 font-bold flex items-center gap-1">
+                                ⚠️ End reading start se kam nahi ho sakta ({currentClose} &lt; {startVal})
+                              </span>
+                            ) : (
+                              <span className="text-indigo-700 font-bold bg-indigo-50 px-2 py-0.5 rounded-md font-mono">
+                                {diffLiters} Litre × Rs. {appliedRate.toFixed(2)} = Rs. {lineAmount.toLocaleString("en-PK")}
+                              </span>
+                            )}
+                            <span className="text-emerald-700 font-mono font-black">
+                              {formatLitres(diffLiters)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 2. Three Separate Fields: Cash Jama, Udhar, Kharcha */}
+                <div>
+                  <label className="block text-xs font-black text-slate-800 uppercase mb-2">
+                    2. کیش وصولی، ادھار اور خرچہ (3 Separate Fields):
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Field 1: Cash Jama (jo larke ne diya) */}
+                    <div>
+                      <label className="block text-[11px] font-black text-rose-700 mb-1">
+                        کیش جمع (جو لڑکے نے دیا) *
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        required
+                        placeholder="e.g. 138000"
+                        value={closingCash}
+                        onChange={(e) => setClosingCash(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-rose-300 text-sm font-mono font-black text-slate-900 focus:outline-none focus:border-rose-600"
+                      />
+                      <span className="text-[10px] text-slate-400 font-medium">Actual Cash Received</span>
+                    </div>
+
+                    {/* Field 2: Udhar (Credit) */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-amber-700 mb-1">
+                        ادھار سیل (Udhar / Credit)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="0"
+                        value={closingCredit}
+                        onChange={(e) => setClosingCredit(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-amber-300 text-sm font-mono font-bold text-slate-900 focus:outline-none focus:border-amber-600"
+                      />
+                      <span className="text-[10px] text-slate-400 font-medium">Credit given on shift</span>
+                    </div>
+
+                    {/* Field 3: Kharcha (Expense) */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-purple-700 mb-1">
+                        شفٹ خرچہ (Expense / Kharcha)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="0"
+                        value={closingExpense}
+                        onChange={(e) => setClosingExpense(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-purple-300 text-sm font-mono font-bold text-slate-900 focus:outline-none focus:border-purple-600"
+                      />
+                      <span className="text-[10px] text-slate-400 font-medium">Expenses paid from counter</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* End Time Field */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     اختتام وقت (End Time)
@@ -647,50 +802,175 @@ export default function PumpShiftsPage() {
                     value={closeEndTime}
                     onChange={(e) => setCloseEndTime(e.target.value)}
                     placeholder="04:00 PM"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs font-mono font-bold text-center focus:outline-none focus:border-indigo-600"
+                    className="w-full sm:w-1/2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs font-mono font-bold focus:outline-none focus:border-indigo-600"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-black text-rose-700 mb-1">
-                    کلوزنگ کیش روپے (Actual Cash) *
-                  </label>
-                  <input
-                    type="number"
-                    step="1"
-                    required
-                    placeholder="e.g. 150000"
-                    value={closingCash}
-                    onChange={(e) => setClosingCash(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-rose-300 text-sm font-mono font-black text-slate-900 focus:outline-none focus:border-rose-600"
-                  />
+                {/* 3. Big Calculation Card: Master Formula Result */}
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white shadow-xl border border-indigo-800 space-y-3">
+                  <div className="flex items-center justify-between text-xs text-indigo-300">
+                    <span className="font-extrabold flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                      <span>فائنل کیش حساب (Cash Audit Summary)</span>
+                    </span>
+                    <span className="font-mono text-[11px] bg-indigo-900/80 px-2 py-0.5 rounded-full border border-indigo-700 font-bold">
+                      کل سیل: {calc.formatted.total_litre}
+                    </span>
+                  </div>
+
+                  {/* Cash Hona Chahiye Calculation Line */}
+                  <div className="bg-slate-800/90 p-3 rounded-xl border border-slate-700 font-mono text-xs sm:text-sm">
+                    <span className="text-slate-300 font-bold block text-[11px] mb-1">کیش دراز میں ہونا چاہیے:</span>
+                    <span className="text-amber-300 font-black tracking-wide leading-relaxed block">
+                      {calc.formatted.summary_line}
+                    </span>
+                  </div>
+
+                  {/* Comparison & Difference */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 border-t border-indigo-900/60">
+                    <div>
+                      <span className="text-[11px] text-slate-400 font-bold block">لڑکے نے کیش جمع کروایا:</span>
+                      <span className="text-base sm:text-lg font-mono font-black text-white">
+                        Larke ne diya: Rs. {(parseFloat(closingCash) || 0).toLocaleString("en-PK")}
+                      </span>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="text-[11px] text-slate-400 font-bold block">شارٹ / ایکسٹرا اسٹیٹس:</span>
+                      <span
+                        className={`inline-block px-3 py-1.5 rounded-xl text-xs sm:text-sm font-mono font-black shadow-xs ${
+                          calc.status === "matched"
+                            ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                            : calc.status === "short"
+                            ? "bg-rose-500/20 text-rose-300 border border-rose-500/40"
+                            : "bg-blue-500/20 text-blue-300 border border-blue-500/40"
+                        }`}
+                      >
+                        {calc.status === "matched"
+                          ? "✅ کیش بالکل برابر ہے (Matched: Rs. 0)"
+                          : calc.status === "short"
+                          ? `❌ Short: Rs. ${Math.abs(calc.difference).toLocaleString("en-PK")}`
+                          : `➕ Extra: Rs. ${calc.difference.toLocaleString("en-PK")}`}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Form Actions */}
+                <div className="flex justify-end gap-2 pt-3 border-t">
+                  <button
+                    type="button"
+                    onClick={() => setShowCloseModal(false)}
+                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
+                  >
+                    منسوخ کریں
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={closing}
+                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white font-bold text-xs shadow-md disabled:opacity-50 hover:shadow-lg transition-all"
+                  >
+                    شفٹ بند کریں (Close & Audit)
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* CONFIRMATION DIALOG MODAL: "Kya calculation theek hai?" */}
+      {showConfirmModal && activeShift && (() => {
+        const nozzleEntries = (activeShift.readings || []).map((r: any) => ({
+          nozzle_id: r.nozzle_id,
+          start: r.opening,
+          end: parseFloat(nozzleClosingInputs[r.nozzle_id] ?? r.opening) || r.opening,
+          rate: parseFloat(r.rate) || (r.fuel_type === "Diesel" ? 280.30 : r.fuel_type === "HiOctane" ? 300.00 : 290.50),
+        }));
+        const calc = calculateMultiNozzleShift(
+          nozzleEntries,
+          parseFloat(closingCash) || 0,
+          parseFloat(closingCredit) || 0,
+          parseFloat(closingExpense) || 0
+        );
+
+        return (
+          <div className="fixed inset-0 z-60 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in">
+              <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto mb-3 shadow-inner">
+                <HelpCircle className="w-6 h-6" />
+              </div>
+
+              <h3 className="text-center text-lg font-black text-slate-900">
+                کیا کیلکولیشن بالکل درست ہے؟
+              </h3>
+              <p className="text-center text-xs text-slate-500 font-bold mt-1">
+                Kya calculation theek hai? برائے مہربانی محفوظ کرنے سے پہلے تصدیق کریں:
+              </p>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 my-4 space-y-2 text-xs font-bold text-slate-700">
+                <div className="flex justify-between">
+                  <span>کل فیول سیل (Total Sale):</span>
+                  <span className="font-mono text-slate-900">{calc.formatted.total_amount} ({calc.formatted.total_litre})</span>
+                </div>
+                <div className="flex justify-between text-amber-700">
+                  <span>منہا ادھار (Udhar):</span>
+                  <span className="font-mono">-Rs. {parseFloat(closingCredit || "0").toLocaleString("en-PK")}</span>
+                </div>
+                <div className="flex justify-between text-purple-700">
+                  <span>منہا خرچہ (Kharcha):</span>
+                  <span className="font-mono">-Rs. {parseFloat(closingExpense || "0").toLocaleString("en-PK")}</span>
+                </div>
+                <div className="flex justify-between border-t border-slate-200 pt-2 text-indigo-950">
+                  <span>کیش ہونا چاہیے (Cash In Hand):</span>
+                  <span className="font-mono font-black text-indigo-700">{calc.formatted.cash_in_hand}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>لڑکے نے جمع کروایا (Larke ne diya):</span>
+                  <span className="font-mono font-black text-slate-900">Rs. {parseFloat(closingCash || "0").toLocaleString("en-PK")}</span>
+                </div>
+                <div className="flex justify-between border-t border-slate-200 pt-2">
+                  <span>نتیجہ (Difference):</span>
+                  <span
+                    className={`font-mono font-black px-2 py-0.5 rounded ${
+                      calc.status === "matched"
+                        ? "bg-emerald-100 text-emerald-800"
+                        : calc.status === "short"
+                        ? "bg-rose-100 text-rose-800"
+                        : "bg-blue-100 text-blue-800"
+                    }`}
+                  >
+                    {calc.status === "matched"
+                      ? "برابر (Matched)"
+                      : calc.status === "short"
+                      ? `شارٹ: ${calc.formatted.difference}`
+                      : `ایکسٹرا: ${calc.formatted.difference}`}
+                  </span>
                 </div>
               </div>
 
-              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
-                سسٹم خودکار طور پر متوقع کیش اور جمع شدہ کیش کا فرق (Short/Excess) رپورٹ میں شمار کر لے گا۔
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t">
+              <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowCloseModal(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
+                  onClick={() => setShowConfirmModal(false)}
+                  disabled={closing}
+                  className="w-1/2 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors"
                 >
-                  منسوخ کریں
+                  نہیں، دوبارہ چیک کریں (Cancel)
                 </button>
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={executeCloseShift}
                   disabled={closing}
-                  className="px-6 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md disabled:opacity-50"
+                  className="w-1/2 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-all disabled:opacity-50"
                 >
-                  {closing ? "محفوظ ہو رہا ہے..." : "شفٹ بند کریں (Close & Save Audit)"}
+                  {closing ? "محفوظ ہو رہا ہے..." : "جی ہاں، کنفرم کریں (Yes, Save)"}
                 </button>
               </div>
-            </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

@@ -10,7 +10,8 @@ import {
   creditSales, 
   expenses,
   nozzles,
-  pumps
+  pumps,
+  fuelRates
 } from "@/lib/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { getTodayDatePK, formatDate, toStandardYMD } from "@/lib/formatters";
@@ -32,7 +33,29 @@ export async function GET(request: Request) {
 
     // 1. Fetch Today's Daily Rates for this pump
     const allRates = await db.select().from(dailyRates).where(eq(dailyRates.pump_id, pumpId));
-    const todayRate = allRates.find((r) => r.date === pkDate || r.date === ymdDate) || null;
+    let todayRate = allRates.find((r) => r.date === pkDate || r.date === ymdDate) || null;
+
+    if (!todayRate) {
+      const liveFuelRates = await db
+        .select()
+        .from(fuelRates)
+        .where(eq(fuelRates.pump_id, pumpId));
+
+      if (liveFuelRates.length > 0) {
+        const pRate = liveFuelRates.find((f) => f.product === "Petrol" || f.product === "Super")?.current_rate || 285.5;
+        const dRate = liveFuelRates.find((f) => f.product === "Diesel")?.current_rate || 292.0;
+        const hRate = liveFuelRates.find((f) => f.product === "HOBC" || f.product === "HiOctane")?.current_rate || 312.0;
+
+        todayRate = {
+          id: 0,
+          pump_id: pumpId,
+          date: ymdDate,
+          petrol_rate: pRate,
+          diesel_rate: dRate,
+          hioctane_rate: hRate,
+        } as any;
+      }
+    }
 
     // 2. Fetch Daily Readings for the date joined with nozzles and tanks for this pump
     const allReadings = await db

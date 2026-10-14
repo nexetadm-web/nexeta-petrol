@@ -35,11 +35,26 @@ import {
 import { RateBanner } from "@/components/RateBanner";
 import { formatRs, formatLitres, getTodayDatePK, formatDate } from "@/lib/formatters";
 import { Tank, DailyRate, AuthSession } from "@/lib/types";
+import { getSavedRateLocal, saveRateLocal } from "@/lib/store/rates";
 
 export default function StationDashboard() {
   const [loading, setLoading] = useState(true);
-  const [todayDateStr, setTodayDateStr] = useState("");
-  const [todayRate, setTodayRate] = useState<DailyRate | null>(null);
+  const [todayDateStr, setTodayDateStr] = useState<string>(() => getTodayDatePK());
+  const [todayRate, setTodayRate] = useState<DailyRate | null>(() => {
+    if (typeof window === "undefined") return null;
+    const local = getSavedRateLocal();
+    if (local) {
+      return {
+        id: local.pump_id || 0,
+        pump_id: local.pump_id || 1,
+        date: local.date,
+        petrol_rate: local.petrol_rate,
+        diesel_rate: local.diesel_rate,
+        hioctane_rate: local.hioctane_rate,
+      };
+    }
+    return null;
+  });
   const [lowStockThreshold, setLowStockThreshold] = useState<number>(20);
   const [session, setSession] = useState<AuthSession | null>(null);
   const [pumpProfile, setPumpProfile] = useState<any>(null);
@@ -82,7 +97,23 @@ export default function StationDashboard() {
         if (data.pump) {
           setPumpProfile(data.pump);
         }
-        setTodayRate(data.rates || null);
+        if (data.rates) {
+          setTodayRate(data.rates);
+          saveRateLocal(data.rates, today);
+        } else {
+          // If DB has no rates for today yet, retain locally saved rates
+          const local = getSavedRateLocal(today);
+          if (local) {
+            setTodayRate({
+              id: local.pump_id || 0,
+              pump_id: local.pump_id || 1,
+              date: local.date,
+              petrol_rate: local.petrol_rate,
+              diesel_rate: local.diesel_rate,
+              hioctane_rate: local.hioctane_rate,
+            });
+          }
+        }
         setMetrics({
           todayFuelLitres: data.metrics.totalFuelSaleLitres || 0,
           todayFuelSaleRs: data.metrics.fuelRevenueRs || 0,

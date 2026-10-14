@@ -102,18 +102,24 @@ export async function POST(
         .where(eq(shiftNozzleReadings.id, r.id));
     }
 
-    // 4. Fetch expenses for that date
+    // 4. Fetch expenses or use submitted credit & expense
+    const creditAmount = parseFloat(body.credit) || 0;
+    const submittedExpense = body.expense !== undefined ? parseFloat(body.expense) : null;
+
     const dayExpenses = await db
       .select()
       .from(expenses)
       .where(and(eq(expenses.pump_id, pumpId), eq(expenses.date, shift.date)));
 
-    const shiftExpensesTotal = dayExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+    const shiftExpensesTotal = submittedExpense !== null && !isNaN(submittedExpense)
+      ? submittedExpense
+      : dayExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
 
-    // 5. Calculate Expected Cash & Difference
-    // Expected = opening_cash + total_income - expenses
-    const expectedCash = Math.round((shift.opening_cash + totalIncome - shiftExpensesTotal) * 100) / 100;
-    const difference = Math.round((closingCash - expectedCash) * 100) / 100;
+    // 5. Calculate Cash in Hand & Difference (Exact Master Formula)
+    // cash_in_hand = total_amount - credit - expense
+    const cashInHand = parseFloat((totalIncome - creditAmount - shiftExpensesTotal).toFixed(2));
+    // difference = cash_received - cash_in_hand (negative = short, positive = extra)
+    const difference = parseFloat((closingCash - cashInHand).toFixed(2));
 
     // 6. Update shift record
     await db
@@ -136,14 +142,14 @@ export async function POST(
         total_nozzle_sale_rs: totalIncome,
         total_oil_products_sale_rs: 0,
         total_sale_rs: totalIncome,
-        total_udhar_rs: 0,
+        total_udhar_rs: creditAmount,
         total_kharcha_rs: shiftExpensesTotal,
-        expected_cash_in_hand: expectedCash,
+        expected_cash_in_hand: cashInHand,
         actual_cash_submitted_rs: closingCash,
         difference_rs: difference,
         submitted_by: shift.staff_name || "Operator",
         receiver_name: "Manager",
-        notes: `Shift ${shift.shift_name} (${shift.start_time} - ${endTime})`,
+        notes: `Shift ${shift.shift_name} (${shift.start_time} - ${endTime}) | Sale: ${totalIncome} - Udhar: ${creditAmount} - Kharcha: ${shiftExpensesTotal} = ${cashInHand}`,
         created_at: new Date().toISOString(),
       });
     } catch (e) {}
@@ -157,11 +163,13 @@ export async function POST(
         openingCash: shift.opening_cash,
         totalSaleLiters,
         totalIncome,
+        credit: creditAmount,
         shiftExpenses: shiftExpensesTotal,
-        expectedCash,
+        expectedCash: cashInHand,
+        cashInHand,
         closingCash,
         difference,
-        status: difference === 0 ? "balanced" : difference < 0 ? "short" : "excess",
+        status: difference === 0 ? "matched" : difference < 0 ? "short" : "extra",
       },
     });
   } catch (error: any) {
