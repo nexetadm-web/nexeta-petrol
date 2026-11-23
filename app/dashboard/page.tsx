@@ -168,31 +168,25 @@ export default function StationDashboard() {
         </div>
       )}
 
-      {/* Station Brand & Subscription Header */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-5 sm:p-6 text-white shadow-xl border border-indigo-500/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Station Brand Header - Deep Emerald Green Gradient (#065F46 to #064E3B) */}
+      <div 
+        className="bg-gradient-to-r from-[#065F46] to-[#064E3B] rounded-3xl p-5 sm:p-6 text-white shadow-xl border border-emerald-400/20 flex flex-col md:flex-row md:items-center justify-between gap-4"
+        style={{ background: "linear-gradient(to right, #065F46, #064E3B)" }}
+      >
         <div>
           <div className="flex items-center gap-2.5 flex-wrap">
-            <span className="p-2 rounded-2xl bg-indigo-500/20 text-indigo-300 border border-indigo-400/30">
+            <span className="p-2 rounded-2xl bg-white/10 text-emerald-200 border border-emerald-300/20 shadow-xs">
               <Building2 className="w-6 h-6" />
             </span>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
               {stationName}
             </h1>
-            <span className="text-xs px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 font-bold flex items-center gap-1.5">
+            <span className="text-xs px-3 py-1 rounded-full bg-emerald-950/40 text-emerald-200 border border-emerald-400/30 font-bold flex items-center gap-1.5 backdrop-blur-xs">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span>{city} Station</span>
             </span>
-            <span className={`text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider ${
-              status === "active" 
-                ? "bg-emerald-500/30 text-emerald-200 border border-emerald-400/40"
-                : status === "trial"
-                ? "bg-amber-500/30 text-amber-200 border border-amber-400/40"
-                : "bg-rose-500/30 text-rose-200 border border-rose-400/40"
-            }`}>
-              {status === "active" ? "✓ سبسکرپشن فعال (Active)" : status === "trial" ? "🎁 14 دن کا مفت ٹرائل (Trial)" : "⚠️ ایکسپائرڈ (Expired)"}
-            </span>
           </div>
-          <p className="text-xs sm:text-sm text-indigo-200/80 mt-1.5 font-medium">
+          <p className="text-xs sm:text-sm text-emerald-100/90 mt-1.5 font-medium">
             پٹرول پمپ لائیو مانیٹرنگ اور خودکار حساب کتاب • مالک: <strong>{ownerName}</strong>
           </p>
         </div>
@@ -201,7 +195,7 @@ export default function StationDashboard() {
           <button
             onClick={fetchDashboardData}
             disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md hover:shadow-indigo-500/25 transition-all active:scale-95 disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-800/80 hover:bg-emerald-700 text-white text-xs font-bold border border-emerald-400/30 shadow-md hover:shadow-emerald-900/30 transition-all active:scale-95 disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
             <span>ریفریش (Refresh)</span>

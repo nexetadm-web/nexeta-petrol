@@ -119,11 +119,6 @@ export function Navbar({ onMobileMenuToggle, mobileMenuOpen }: NavbarProps) {
                       Active SaaS
                     </span>
                   )}
-                  {session?.subscriptionStatus === "trial" && (
-                    <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-300 text-slate-900 shadow-xs">
-                      14-Day Trial
-                    </span>
-                  )}
                   {session?.subscriptionStatus === "expired" && (
                     <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-400 text-slate-900 shadow-xs">
                       Expired
