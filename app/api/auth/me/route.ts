@@ -17,19 +17,22 @@ export async function GET(request: Request) {
     const pumpRows = await db.select().from(pumps).where(eq(pumps.id, session.pumpId));
     if (pumpRows.length > 0) {
       const p = pumpRows[0];
+      const isPaused = p.subscription_status === "paused";
       const expired = isSubscriptionExpired(p.subscription_status, p.trial_ends_at);
-      session.subscriptionStatus = expired ? "expired" : (p.subscription_status as any);
+      session.subscriptionStatus = isPaused ? "paused" : expired ? "expired" : (p.subscription_status as any);
       session.trialEndsAt = p.trial_ends_at;
       session.pumpName = p.pump_name;
     }
 
     const isSuper = (session.role as string) === "super_admin" || isSuperAdminEmail(session.email);
     (session as any).isSuperAdmin = isSuper;
+    const isPaused = session.subscriptionStatus === "paused" && !session.impersonating;
 
     return NextResponse.json({
       success: true,
       session,
       isExpired: session.subscriptionStatus === "expired",
+      isPaused,
       isSuperAdmin: isSuper,
     });
   } catch (error: any) {

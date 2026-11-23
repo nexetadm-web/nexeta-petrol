@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
@@ -22,6 +22,15 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("error") === "paused") {
+        setError("یہ پٹرول پمپ اکاؤنٹ سوپر ایڈمن کی طرف سے عارضی طور پر بند (PAUSED) ہے۔ بحالی کے لیے سوپر ایڈمن سے رابطہ کریں۔");
+      }
+    }
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,11 +58,7 @@ export default function LoginPage() {
         throw new Error(data.error || "لاگ ان میں مسئلہ پیش آیا۔ برائے مہربانی ای میل اور پاس ورڈ چیک کریں۔");
       }
 
-      if (data.isExpired) {
-        router.push("/billing");
-      } else {
-        router.push("/dashboard");
-      }
+      router.push("/dashboard");
     } catch (err: any) {
       setError(err.message);
     } finally {

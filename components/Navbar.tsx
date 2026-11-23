@@ -124,6 +124,11 @@ export function Navbar({ onMobileMenuToggle, mobileMenuOpen }: NavbarProps) {
                       14-Day Trial
                     </span>
                   )}
+                  {session?.subscriptionStatus === "expired" && (
+                    <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-400 text-slate-900 shadow-xs">
+                      Expired
+                    </span>
+                  )}
                 </div>
                 <p className="text-[11px] text-indigo-100 font-medium hidden sm:block">
                   {session?.city ? `${session.city} Station` : "باکمال پیٹرول پمپ مینیجر"} • Multi-Tenant SaaS

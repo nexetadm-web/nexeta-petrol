@@ -175,6 +175,13 @@ const NAV_ITEMS = [
     icon: Settings,
     iconColor: "text-slate-600",
   },
+  {
+    name: "Billing & Plan",
+    urdu: "بلنگ و سبسکرپشن اسٹیٹس",
+    href: "/billing",
+    icon: CreditCard,
+    iconColor: "text-amber-500",
+  },
 ];
 
 export function Sidebar({ mobileOpen, onClose }: SidebarProps) {

@@ -6,7 +6,7 @@ export interface SessionData {
   role: "owner" | "manager" | "cashier";
   pumpName: string;
   city: string;
-  subscriptionStatus: "active" | "trial" | "expired";
+  subscriptionStatus: "active" | "trial" | "expired" | "paused";
   trialEndsAt: string;
   impersonating?: boolean;
 }
@@ -98,6 +98,7 @@ export async function verifyToken<T>(token: string): Promise<T | null> {
 }
 
 export function isSubscriptionExpired(status: string, trialEndsAt?: string): boolean {
+  if (status === "paused") return false;
   if (status === "expired") return true;
   if (status === "active") return false;
   if (status === "trial" && trialEndsAt) {

@@ -103,10 +103,9 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL(`/login?redirect=${encodeURIComponent(pathname)}`, request.url));
     }
 
-    // Check if subscription has expired (impersonating super admin gets bypass)
-    const expired = isSubscriptionExpired(session.subscriptionStatus, session.trialEndsAt);
-    if (expired && !session.impersonating) {
-      return NextResponse.redirect(new URL("/billing", request.url));
+    // Only block if Super Admin has explicitly PAUSED the pump
+    if (session.subscriptionStatus === "paused" && !session.impersonating) {
+      return NextResponse.redirect(new URL("/login?error=paused", request.url));
     }
   }
 

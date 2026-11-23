@@ -82,6 +82,18 @@ export async function POST(request: Request) {
     }
 
     const pump = pumpRecords[0];
+
+    // Check if pump is paused by Super Admin
+    if (pump.subscription_status === "paused") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "یہ پٹرول پمپ اکاؤنٹ سوپر ایڈمن کی طرف سے عارضی طور پر بند (PAUSED) ہے۔ بحالی کے لیے سوپر ایڈمن سے رابطہ کریں۔",
+        },
+        { status: 403 }
+      );
+    }
+
     const expired = isSubscriptionExpired(pump.subscription_status, pump.trial_ends_at);
 
     const sessionPayload = {
@@ -92,7 +104,7 @@ export async function POST(request: Request) {
       role: user.role as "owner",
       pumpName: pump.pump_name,
       city: pump.city,
-      subscriptionStatus: expired ? ("expired" as const) : (pump.subscription_status as any),
+      subscriptionStatus: pump.subscription_status === "paused" ? ("paused" as const) : expired ? ("expired" as const) : (pump.subscription_status as any),
       trialEndsAt: pump.trial_ends_at,
     };
 

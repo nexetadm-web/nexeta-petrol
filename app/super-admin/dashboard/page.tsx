@@ -21,7 +21,10 @@ import {
   RefreshCw,
   Phone,
   Mail,
-  MapPin
+  MapPin,
+  Trash2,
+  Pause,
+  Play
 } from "lucide-react";
 import { formatPKDate } from "@/lib/formatters";
 
@@ -43,7 +46,9 @@ interface Stats {
   activePumps: number;
   trialPumps: number;
   expiredPumps: number;
-  totalMonthlyRevenue: number;
+  pausedPumps?: number;
+  totalMonthlyRevenue?: number;
+  estimatedMonthlyRevenue?: number;
 }
 
 export default function SuperAdminDashboardPage() {
@@ -53,6 +58,8 @@ export default function SuperAdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [actionLoadingId, setActionLoadingId] = useState<number | null>(null);
+  const [pumpToDelete, setPumpToDelete] = useState<PumpItem | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const fetchPumps = async () => {
     setLoading(true);
@@ -64,7 +71,7 @@ export default function SuperAdminDashboardPage() {
       }
       const data = await res.json();
       if (data.success) {
-        setStats(data.stats);
+        setStats(data.metrics || data.stats || null);
         setPumps(data.pumps || []);
       }
     } catch (err) {
@@ -78,13 +85,16 @@ export default function SuperAdminDashboardPage() {
     fetchPumps();
   }, []);
 
-  const handleAction = async (action: "extend" | "block" | "unblock" | "impersonate", pumpId: number) => {
+  const handleAction = async (
+    action: "extend" | "pause" | "resume" | "block" | "unblock" | "impersonate" | "delete",
+    pumpId: number
+  ) => {
     setActionLoadingId(pumpId);
     try {
       const res = await fetch("/api/super-admin/pumps", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, pumpId }),
+        body: JSON.stringify({ action, pumpId, pump_id: pumpId }),
       });
       const data = await res.json();
       if (!data.success) {
@@ -93,7 +103,6 @@ export default function SuperAdminDashboardPage() {
       }
 
       if (action === "impersonate") {
-        // Redirect to pump dashboard as impersonated owner
         window.location.href = "/dashboard";
         return;
       }
@@ -104,6 +113,17 @@ export default function SuperAdminDashboardPage() {
       alert("Error: " + err.message);
     } finally {
       setActionLoadingId(null);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!pumpToDelete) return;
+    setDeleteLoading(true);
+    try {
+      await handleAction("delete", pumpToDelete.id);
+      setPumpToDelete(null);
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -122,6 +142,8 @@ export default function SuperAdminDashboardPage() {
       p.city?.toLowerCase().includes(q)
     );
   });
+
+  const totalRevenue = stats?.estimatedMonthlyRevenue ?? stats?.totalMonthlyRevenue ?? 0;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
@@ -205,17 +227,19 @@ export default function SuperAdminDashboardPage() {
             </div>
           </div>
 
-          {/* Card 4: Expired / Blocked */}
+          {/* Card 4: Expired / Paused */}
           <div className="p-5 rounded-2xl bg-rose-950/40 border border-rose-900/60 flex flex-col justify-between">
             <div className="flex items-center justify-between text-rose-400 text-xs font-bold uppercase">
-              <span>Expired / Blocked</span>
+              <span>Expired / Paused</span>
               <Ban className="w-5 h-5 text-rose-400" />
             </div>
             <div className="mt-3">
               <div className="text-3xl font-black text-rose-400 font-mono">
-                {stats?.expiredPumps ?? 0}
+                {(stats?.expiredPumps ?? 0) + (stats?.pausedPumps ?? 0)}
               </div>
-              <div className="text-[11px] text-rose-300/80 mt-0.5">معطل یا ختم شدہ</div>
+              <div className="text-[11px] text-rose-300/80 mt-0.5">
+                {stats?.pausedPumps ? `${stats.pausedPumps} روک دیے گئے • ` : ""}{stats?.expiredPumps ?? 0} پلان ختم
+              </div>
             </div>
           </div>
 
@@ -227,7 +251,7 @@ export default function SuperAdminDashboardPage() {
             </div>
             <div className="mt-3">
               <div className="text-2xl font-black text-white font-mono">
-                Rs. {(stats?.totalMonthlyRevenue ?? 0).toLocaleString()}
+                Rs. {totalRevenue.toLocaleString()}
               </div>
               <div className="text-[11px] text-indigo-200 mt-0.5">@ Rs. 3,000 / ماہانہ</div>
             </div>
@@ -238,9 +262,9 @@ export default function SuperAdminDashboardPage() {
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
             <div>
-              <h2 className="text-xl font-bold text-white">تمام پٹرول پمپس کی فہرست (Registered Stations)</h2>
+              <h2 className="text-xl font-bold text-white">تمام پٹرول پمپس کی فہرست (All Pumps / Agencies)</h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                سبسکرپشن میں 30 دن کا اضافہ کریں، اکاؤنٹ بلاک/بحال کریں یا خود لاگ ان کر کے چیک کریں
+                ہر پمپ کے لیے PAUSE اور DELETE بٹن دستیاب ہیں۔ صرف PAUSE کرنے پر لاگ ان بند ہوگا۔
               </p>
             </div>
 
@@ -259,7 +283,7 @@ export default function SuperAdminDashboardPage() {
 
           {/* Table */}
           <div className="overflow-x-auto mt-4">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-xs min-w-[900px]">
               <thead className="text-[11px] uppercase tracking-wider text-slate-400 bg-slate-950/60 border-b border-slate-800">
                 <tr>
                   <th className="py-3 px-4 font-bold">ID & نام پٹرول پمپ</th>
@@ -280,6 +304,7 @@ export default function SuperAdminDashboardPage() {
                 ) : (
                   filteredPumps.map((pump) => {
                     const isBusy = actionLoadingId === pump.id;
+                    const isPaused = pump.subscription_status === "paused";
                     const isExpired = pump.subscription_status === "expired";
                     const isTrial = pump.subscription_status === "trial";
                     const isActive = pump.subscription_status === "active";
@@ -290,7 +315,7 @@ export default function SuperAdminDashboardPage() {
                         <td className="py-3 px-4">
                           <div className="font-bold text-white text-sm">{pump.pump_name}</div>
                           <div className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5">
-                            <span className="font-mono text-indigo-400">#{pump.id}</span>
+                            <span className="font-mono text-indigo-400 font-bold">#{pump.id}</span>
                             <span>•</span>
                             <span className="font-mono">{pump.email}</span>
                           </div>
@@ -311,19 +336,24 @@ export default function SuperAdminDashboardPage() {
 
                         {/* Status */}
                         <td className="py-3 px-4">
-                          {isActive && (
-                            <span className="px-2.5 py-1 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 font-bold text-[10px]">
-                              Active (ادا شدہ)
+                          {isPaused && (
+                            <span className="px-2.5 py-1 rounded-full bg-amber-950 text-amber-400 border border-amber-800 font-black text-[10px]">
+                              PAUSED (عارضی بند)
                             </span>
                           )}
-                          {isTrial && (
+                          {!isPaused && isActive && (
+                            <span className="px-2.5 py-1 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 font-bold text-[10px]">
+                              Active (فعال)
+                            </span>
+                          )}
+                          {!isPaused && isTrial && (
                             <span className="px-2.5 py-1 rounded-full bg-blue-950 text-blue-400 border border-blue-800 font-bold text-[10px]">
                               Trial (14 دن)
                             </span>
                           )}
-                          {isExpired && (
+                          {!isPaused && isExpired && (
                             <span className="px-2.5 py-1 rounded-full bg-rose-950 text-rose-400 border border-rose-800 font-bold text-[10px]">
-                              Expired / معطل
+                              Expired (پلان ختم)
                             </span>
                           )}
                         </td>
@@ -335,52 +365,73 @@ export default function SuperAdminDashboardPage() {
 
                         {/* Actions */}
                         <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {/* Extend +30 Days */}
-                            <button
-                              onClick={() => handleAction("extend", pump.id)}
-                              disabled={isBusy}
-                              className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition-colors disabled:opacity-50"
-                              title="Extend subscription by 30 days"
-                            >
-                              +30 دن فیس جمع
-                            </button>
-
-                            {/* Block / Unblock */}
-                            {pump.subscription_status === "expired" ? (
+                          <div className="flex items-center justify-end gap-2 flex-wrap">
+                            {/* 1. [ PAUSE ] / [ RESUME ] Button - Orange Color */}
+                            {isPaused ? (
                               <button
-                                onClick={() => handleAction("unblock", pump.id)}
+                                type="button"
+                                onClick={() => handleAction("resume", pump.id)}
                                 disabled={isBusy}
-                                className="px-2.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-[11px] transition-colors disabled:opacity-50"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-sm transition-all active:scale-95 disabled:opacity-50"
+                                title="Resume / پمپ بحال کریں"
                               >
-                                بحال کریں
+                                <Play className="w-3.5 h-3.5 fill-white" />
+                                <span>RESUME</span>
                               </button>
                             ) : (
                               <button
-                                onClick={() => handleAction("block", pump.id)}
+                                type="button"
+                                onClick={() => handleAction("pause", pump.id)}
                                 disabled={isBusy}
-                                className="px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-[11px] transition-colors disabled:opacity-50"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-extrabold text-xs shadow-sm transition-all active:scale-95 disabled:opacity-50"
+                                title="Pause Pump / پمپ لاگ ان روکیں"
                               >
-                                بلاک کریں
+                                <Pause className="w-3.5 h-3.5 fill-white" />
+                                <span>PAUSE</span>
                               </button>
                             )}
 
-                            {/* Tanks & Dip Chart */}
+                            {/* 2. [ DELETE ] Button - Red Color (FORCE SHOWN ALWAYS) */}
+                            <button
+                              type="button"
+                              onClick={() => setPumpToDelete(pump)}
+                              disabled={isBusy}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-extrabold text-xs shadow-sm transition-all active:scale-95 disabled:opacity-50"
+                              title="Delete Pump and all data / مکمل ڈیٹا ڈیلیٹ کریں"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>DELETE</span>
+                            </button>
+
+                            {/* +30 Days Extend */}
+                            <button
+                              type="button"
+                              onClick={() => handleAction("extend", pump.id)}
+                              disabled={isBusy}
+                              className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold text-[11px] border border-emerald-500/30 transition-colors disabled:opacity-50"
+                              title="Extend subscription by 30 days"
+                            >
+                              +30 دن
+                            </button>
+
+                            {/* Tanks */}
                             <Link
                               href={`/super-admin/pump/${pump.id}/tanks`}
                               className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-indigo-300 font-bold text-[11px] transition-colors"
                               title="View Tanks & Dip Charts"
                             >
-                              ٹینکس و ڈِپ
+                              ٹینکس
                             </Link>
 
-                            {/* Login As Pump */}
+                            {/* Open Station */}
                             <button
+                              type="button"
                               onClick={() => handleAction("impersonate", pump.id)}
                               disabled={isBusy}
-                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] transition-colors disabled:opacity-50"
+                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] transition-colors disabled:opacity-50"
+                              title="Open station as owner"
                             >
-                              <span>اسٹیشن کھولیں</span>
+                              <span>کھولیں</span>
                               <ExternalLink className="w-3 h-3" />
                             </button>
                           </div>
@@ -394,6 +445,53 @@ export default function SuperAdminDashboardPage() {
           </div>
         </div>
       </main>
+
+      {/* Delete Confirmation Popup Modal */}
+      {pumpToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl text-slate-100">
+            <div className="flex items-center gap-3 text-red-500 mb-4">
+              <div className="p-3 bg-red-500/20 rounded-full shrink-0">
+                <AlertTriangle className="w-6 h-6 text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">پمپ ڈیلیٹ کرنے کی تصدیق</h3>
+                <p className="text-xs text-slate-400">
+                  {pumpToDelete.pump_name} • #{pumpToDelete.id} ({pumpToDelete.city || "Pakistan"})
+                </p>
+              </div>
+            </div>
+
+            <div className="my-4 p-4 rounded-xl bg-red-950/40 border border-red-800/60 text-red-200 text-sm font-semibold leading-relaxed">
+              Kya aap waqai is Pump ka saara data delete karna chahte hain? Ye wapas nahi aayega.
+            </div>
+
+            <div className="flex items-center justify-end gap-3 mt-6">
+              <button
+                type="button"
+                onClick={() => setPumpToDelete(null)}
+                disabled={deleteLoading}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs sm:text-sm font-bold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={deleteLoading}
+                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs sm:text-sm font-black shadow-lg shadow-red-600/30 transition-all flex items-center gap-2 disabled:opacity-50"
+              >
+                {deleteLoading ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+                <span>Haan Delete Karo</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

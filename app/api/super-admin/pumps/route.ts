@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import * as schema from "@/lib/schema";
 import { pumps, users, tanks, dailyReadings } from "@/lib/schema";
 import { getSuperAdminSession, signToken, SESSION_COOKIE_NAME, isSubscriptionExpired } from "@/lib/auth";
 import { eq, desc } from "drizzle-orm";
@@ -21,14 +22,23 @@ export async function GET(request: Request) {
     let activeCount = 0;
     let trialCount = 0;
     let expiredCount = 0;
+    let pausedCount = 0;
 
     const enrichedPumps = allPumps.map((p) => {
-      const expired = isSubscriptionExpired(p.subscription_status, p.trial_ends_at);
-      const effectiveStatus = expired ? "expired" : p.subscription_status;
+      let effectiveStatus = p.subscription_status;
+      let expired = false;
 
-      if (effectiveStatus === "active") activeCount++;
-      else if (effectiveStatus === "trial") trialCount++;
-      else expiredCount++;
+      if (p.subscription_status === "paused") {
+        effectiveStatus = "paused";
+        pausedCount++;
+      } else {
+        expired = isSubscriptionExpired(p.subscription_status, p.trial_ends_at);
+        effectiveStatus = expired ? "expired" : p.subscription_status;
+
+        if (effectiveStatus === "active") activeCount++;
+        else if (effectiveStatus === "trial") trialCount++;
+        else expiredCount++;
+      }
 
       const pUsers = allUsers.filter((u) => u.pump_id === p.id);
       const pTanks = allTanks.filter((t) => t.pump_id === p.id);
@@ -50,6 +60,7 @@ export async function GET(request: Request) {
         activePumps: activeCount,
         trialPumps: trialCount,
         expiredPumps: expiredCount,
+        pausedPumps: pausedCount,
         estimatedMonthlyRevenue: activeCount * 3000, // Rs. 3,000 / month
       },
     });
@@ -66,13 +77,14 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { action, pump_id } = body;
+    const action = body.action;
+    const pumpId = Number(body.pump_id || body.pumpId);
 
-    if (!action || !pump_id) {
-      return NextResponse.json({ success: false, error: "Missing action or pump_id" }, { status: 400 });
+    if (!action || !pumpId) {
+      return NextResponse.json({ success: false, error: "Missing action or pumpId" }, { status: 400 });
     }
 
-    const targetPumpRows = await db.select().from(pumps).where(eq(pumps.id, Number(pump_id)));
+    const targetPumpRows = await db.select().from(pumps).where(eq(pumps.id, pumpId));
     if (targetPumpRows.length === 0) {
       return NextResponse.json({ success: false, error: "Pump not found" }, { status: 404 });
     }
@@ -81,7 +93,7 @@ export async function POST(request: Request) {
     // 1. EXTEND SUBSCRIPTION (+30 Days)
     if (action === "extend") {
       const currentExpiry = new Date(targetPump.trial_ends_at).getTime();
-      const baseTime = currentExpiry > Date.now() ? currentExpiry : Date.now();
+      const baseTime = !isNaN(currentExpiry) && currentExpiry > Date.now() ? currentExpiry : Date.now();
       const newExpiry = new Date(baseTime + 30 * 24 * 60 * 60 * 1000).toISOString();
 
       await db
@@ -95,22 +107,25 @@ export async function POST(request: Request) {
       });
     }
 
-    // 2. BLOCK PUMP (Set expired)
-    if (action === "block") {
+    // 2. PAUSE PUMP (Login blocked, manual full control)
+    if (action === "pause" || action === "block") {
       await db
         .update(pumps)
-        .set({ subscription_status: "expired" })
+        .set({ subscription_status: "paused" })
         .where(eq(pumps.id, targetPump.id));
 
       return NextResponse.json({
         success: true,
-        message: `${targetPump.pump_name} کو بلاک کر دیا گیا ہے۔`,
+        message: `${targetPump.pump_name} کو عارضی طور پر روک (PAUSED) دیا گیا ہے۔ اب اس کا لاگ ان بند رہے گا۔`,
       });
     }
 
-    // 3. UNBLOCK PUMP (Set active for 30 days)
-    if (action === "unblock") {
-      const newExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    // 3. RESUME / UNPAUSE PUMP (Re-activate)
+    if (action === "resume" || action === "unpause" || action === "unblock") {
+      const currentExpiry = new Date(targetPump.trial_ends_at).getTime();
+      const baseTime = !isNaN(currentExpiry) && currentExpiry > Date.now() ? currentExpiry : Date.now();
+      const newExpiry = new Date(baseTime + 30 * 24 * 60 * 60 * 1000).toISOString();
+
       await db
         .update(pumps)
         .set({ subscription_status: "active", trial_ends_at: newExpiry })
@@ -118,7 +133,7 @@ export async function POST(request: Request) {
 
       return NextResponse.json({
         success: true,
-        message: `${targetPump.pump_name} کو فعال (Active) کر دیا گیا ہے۔`,
+        message: `${targetPump.pump_name} کو دوبارہ بحال (Active) کر دیا گیا ہے۔`,
       });
     }
 
@@ -163,13 +178,60 @@ export async function POST(request: Request) {
       return response;
     }
 
-    // 5. DELETE PUMP
+    // 5. DELETE PUMP (Delete all associated records cleanly)
     if (action === "delete") {
-      if (targetPump.id === 1) {
-        return NextResponse.json({ success: false, error: "بنیادی ڈیمو پمپ حذف نہیں کیا جا سکتا۔" }, { status: 400 });
+      const pid = targetPump.id;
+      const childTables = [
+        schema.dailyReadings,
+        schema.shiftNozzleReadings,
+        schema.shifts,
+        schema.nozzleSales,
+        schema.nozzles,
+        schema.tanks,
+        schema.dailyRates,
+        schema.fuelPurchases,
+        schema.productSales,
+        schema.products,
+        schema.creditSales,
+        schema.creditCustomers,
+        schema.expenses,
+        schema.pumpExpenses,
+        schema.dipCharts,
+        schema.stockLogs,
+        schema.dipVariations,
+        schema.tankKhata,
+        schema.employeeDuty,
+        schema.employees,
+        schema.cashClosings,
+        schema.pumpSettings,
+        schema.aiAlerts,
+        schema.dailyReconciliation,
+        schema.partyTransactions,
+        schema.parties,
+        schema.fuelRatesHistory,
+        schema.fuelRates,
+        schema.cashLoanTransactions,
+        schema.cashLoans,
+        schema.alertSettings,
+        schema.users,
+      ];
+
+      for (const tbl of childTables) {
+        try {
+          if (tbl && "pump_id" in tbl) {
+            await db.delete(tbl).where(eq((tbl as any).pump_id, pid));
+          }
+        } catch (e) {
+          // continue if table is missing pump_id or fails
+        }
       }
-      await db.delete(pumps).where(eq(pumps.id, targetPump.id));
-      return NextResponse.json({ success: true, message: "پمپ حذف کر دیا گیا۔" });
+
+      await db.delete(pumps).where(eq(pumps.id, pid));
+
+      return NextResponse.json({
+        success: true,
+        message: `${targetPump.pump_name} اور اس کا تمام ڈیٹا کامیابی سے ڈیلیٹ کر دیا گیا۔`,
+      });
     }
 
     return NextResponse.json({ success: false, error: "نامعلوم ایکشن" }, { status: 400 });

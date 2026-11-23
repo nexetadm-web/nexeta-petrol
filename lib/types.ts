@@ -9,7 +9,7 @@ export interface Pump {
   city: string;
   cnic?: string | null;
   password_hash?: string;
-  subscription_status: "active" | "trial" | "expired";
+  subscription_status: "active" | "trial" | "expired" | "paused";
   trial_ends_at: string;
   created_at: string;
 }
@@ -38,7 +38,7 @@ export interface AuthSession {
   role: "owner" | "manager" | "cashier";
   pumpName: string;
   city: string;
-  subscriptionStatus: "active" | "trial" | "expired";
+  subscriptionStatus: "active" | "trial" | "expired" | "paused";
   trialEndsAt: string;
   impersonating?: boolean;
 }
