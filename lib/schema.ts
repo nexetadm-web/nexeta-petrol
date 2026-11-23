@@ -19,6 +19,7 @@ export const pumps = sqliteTable("pumps", {
   password_hash: text("password_hash").notNull(),
   subscription_status: text("subscription_status").notNull().default("trial"), // "active" | "trial" | "expired"
   trial_ends_at: text("trial_ends_at").notNull(), // ISO Date string
+  monthly_price: integer("monthly_price").default(3000), // Customized monthly SaaS price in PKR
   created_at: text("created_at").notNull(),
 });
 

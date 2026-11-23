@@ -20,6 +20,7 @@ import {
   Wallet,
   Sliders,
   ShieldAlert,
+  ShieldCheck,
   Cpu,
   CheckCheck,
   CreditCard,
@@ -176,11 +177,11 @@ const NAV_ITEMS = [
     iconColor: "text-slate-600",
   },
   {
-    name: "Billing & Plan",
-    urdu: "بلنگ و سبسکرپشن اسٹیٹس",
+    name: "Subscription Status",
+    urdu: "اکاؤنٹ سبسکرپشن اسٹیٹس",
     href: "/billing",
-    icon: CreditCard,
-    iconColor: "text-amber-500",
+    icon: ShieldCheck,
+    iconColor: "text-indigo-600",
   },
 ];
 

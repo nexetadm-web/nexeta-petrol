@@ -303,6 +303,7 @@ export async function GET() {
         password_hash TEXT NOT NULL,
         subscription_status TEXT NOT NULL DEFAULT 'trial',
         trial_ends_at TEXT NOT NULL,
+        monthly_price INTEGER DEFAULT 3000,
         created_at TEXT NOT NULL
       );
     `);
@@ -545,9 +546,10 @@ export async function GET() {
       );
     `);
 
-    // Ensure pumps table has address and logo_url
+    // Ensure pumps table has address, logo_url, and monthly_price
     try { await tursoClient.execute("ALTER TABLE pumps ADD COLUMN address TEXT;"); } catch (e) {}
     try { await tursoClient.execute("ALTER TABLE pumps ADD COLUMN logo_url TEXT;"); } catch (e) {}
+    try { await tursoClient.execute("ALTER TABLE pumps ADD COLUMN monthly_price INTEGER DEFAULT 3000;"); } catch (e) {}
 
     // Performance Indexes for Sub-Millisecond Queries
     try { await tursoClient.execute("CREATE INDEX IF NOT EXISTS idx_pump_exp_pump_date ON pump_expenses(pump_id, expense_date);"); } catch (e) {}

@@ -23,10 +23,13 @@ export async function GET(request: Request) {
     let trialCount = 0;
     let expiredCount = 0;
     let pausedCount = 0;
+    let totalMonthlyRevenue = 0;
 
     const enrichedPumps = allPumps.map((p) => {
       let effectiveStatus = p.subscription_status;
       let expired = false;
+
+      const customPrice = p.monthly_price ?? 3000;
 
       if (p.subscription_status === "paused") {
         effectiveStatus = "paused";
@@ -35,9 +38,14 @@ export async function GET(request: Request) {
         expired = isSubscriptionExpired(p.subscription_status, p.trial_ends_at);
         effectiveStatus = expired ? "expired" : p.subscription_status;
 
-        if (effectiveStatus === "active") activeCount++;
-        else if (effectiveStatus === "trial") trialCount++;
-        else expiredCount++;
+        if (effectiveStatus === "active") {
+          activeCount++;
+          totalMonthlyRevenue += customPrice;
+        } else if (effectiveStatus === "trial") {
+          trialCount++;
+        } else {
+          expiredCount++;
+        }
       }
 
       const pUsers = allUsers.filter((u) => u.pump_id === p.id);
@@ -45,6 +53,7 @@ export async function GET(request: Request) {
 
       return {
         ...p,
+        monthly_price: customPrice,
         effectiveStatus,
         isExpired: expired,
         usersCount: pUsers.length,
@@ -61,7 +70,7 @@ export async function GET(request: Request) {
         trialPumps: trialCount,
         expiredPumps: expiredCount,
         pausedPumps: pausedCount,
-        estimatedMonthlyRevenue: activeCount * 3000, // Rs. 3,000 / month
+        estimatedMonthlyRevenue: totalMonthlyRevenue,
       },
     });
   } catch (error: any) {
@@ -231,6 +240,25 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: true,
         message: `${targetPump.pump_name} اور اس کا تمام ڈیٹا کامیابی سے ڈیلیٹ کر دیا گیا۔`,
+      });
+    }
+
+    // 6. UPDATE CUSTOM MONTHLY PRICE (Super Admin Only)
+    if (action === "update_price" || action === "edit_price") {
+      const newPrice = Number(body.price ?? body.monthly_price);
+      if (isNaN(newPrice) || newPrice < 0) {
+        return NextResponse.json({ success: false, error: "درست رقم درج کریں" }, { status: 400 });
+      }
+
+      await db
+        .update(pumps)
+        .set({ monthly_price: newPrice })
+        .where(eq(pumps.id, targetPump.id));
+
+      return NextResponse.json({
+        success: true,
+        message: `${targetPump.pump_name} کی ماہانہ فیس Rs. ${newPrice.toLocaleString()} کامیابی سے محفوظ ہو گئی۔`,
+        price: newPrice,
       });
     }
 

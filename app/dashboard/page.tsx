@@ -198,14 +198,6 @@ export default function StationDashboard() {
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
-          <Link
-            href="/billing"
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/20 backdrop-blur-sm transition-all"
-          >
-            <CreditCard className="w-4 h-4 text-amber-300" />
-            <span>بلنگ (Rs. 3000/ماہانہ)</span>
-          </Link>
-
           <button
             onClick={fetchDashboardData}
             disabled={loading}

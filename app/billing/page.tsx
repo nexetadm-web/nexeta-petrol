@@ -53,7 +53,7 @@ export default function BillingPage() {
 
   return (
     <div className="py-8 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto w-full text-slate-800 space-y-6">
-      {/* 1. Small Top Notice if Expired (No screen block, just a clean message) */}
+      {/* 1. Small Top Notice if Expired */}
       {isExpired && (
         <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 text-xs sm:text-sm font-bold flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs animate-fadeIn">
           <div className="flex items-center gap-2.5">
@@ -72,7 +72,7 @@ export default function BillingPage() {
         </div>
       )}
 
-      {/* 2. Station & Subscription Status Card */}
+      {/* 2. Station & Subscription Status Card (No Price/Amount - Only Status) */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-md">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-slate-100 gap-4">
           <div className="flex items-center gap-3.5">
@@ -84,25 +84,25 @@ export default function BillingPage() {
                 <h1 className="text-xl sm:text-2xl font-black text-slate-900">
                   {session?.pumpName || "Nexeta Petrol Station"}
                 </h1>
-                {/* Status Badges */}
+                {/* Status Badges - Only Active / Pause / Trial / Expired */}
                 {isActive && (
                   <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-extrabold text-xs">
-                    ✓ Active (فعال)
-                  </span>
-                )}
-                {isTrial && (
-                  <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-extrabold text-xs">
-                    🎁 14-Day Free Trial (ٹرائل)
-                  </span>
-                )}
-                {isExpired && (
-                  <span className="px-3 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-300 font-extrabold text-xs">
-                    ⚠️ Expired (پلان ختم)
+                    Status: Active (فعال)
                   </span>
                 )}
                 {isPaused && (
                   <span className="px-3 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 font-extrabold text-xs">
-                    ⛔ Paused (روک دیا گیا)
+                    Status: Paused (عارضی بند)
+                  </span>
+                )}
+                {isTrial && (
+                  <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-extrabold text-xs">
+                    Status: Trial (14 روزہ ٹرائل)
+                  </span>
+                )}
+                {isExpired && (
+                  <span className="px-3 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-300 font-extrabold text-xs">
+                    Status: Expired (پلان ختم)
                   </span>
                 )}
               </div>
@@ -115,7 +115,7 @@ export default function BillingPage() {
             </div>
           </div>
 
-          {/* Go to Dashboard Button (User can always navigate & continue software usage) */}
+          {/* Go to Dashboard Button */}
           <Link
             href="/dashboard"
             className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs sm:text-sm shadow-md shadow-indigo-600/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
@@ -138,69 +138,50 @@ export default function BillingPage() {
         </div>
       </div>
 
-      {/* 3. Pricing Plan & Bank Details */}
+      {/* 3. Bank & Payment Accounts Card (Purely Account Details, NO Price/Amount) */}
       <div className="bg-white rounded-3xl shadow-md border border-slate-200 p-6 sm:p-8 space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-slate-100 gap-4">
-          <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-600">
-              Official Monthly Plan • پٹرول پمپ سبسکرپشن
-            </span>
-            <h2 className="text-2xl font-black text-slate-900 mt-1">
-              Nexeta Petrol Unlimited
-            </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              تمام ٹینک، تمام نوزلز، واٹس ایپ ادھار یاد دہانی اور کیش کلوزنگ
-            </p>
-          </div>
-          <div className="sm:text-right">
-            <div className="text-3xl font-black text-indigo-700 font-mono">
-              Rs. 3,000 <span className="text-sm font-semibold text-slate-500">/ ماہانہ</span>
-            </div>
-            <span className="text-[11px] text-emerald-600 font-bold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 inline-block mt-1">
-              کوئی اضافی چارجز نہیں
-            </span>
-          </div>
+        <div className="pb-4 border-b border-slate-100">
+          <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 flex items-center gap-1.5">
+            <CreditCard className="w-4 h-4" />
+            <span>فیس منتقلی کے اکاؤنٹ تفصیلات (Payment Accounts)</span>
+          </span>
+          <p className="text-xs text-slate-500 mt-1">
+            طے شدہ ماہانہ فیس نیچے دیے گئے اکاؤنٹ میں جمع کروا کر رسید واٹس ایپ پر شیئر کریں۔
+          </p>
         </div>
 
         {/* Payment Methods */}
-        <div>
-          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700 mb-3 flex items-center gap-2">
-            <CreditCard className="w-4 h-4 text-indigo-600" />
-            <span>فیس جمع کروانے کے طریقے (Payment Accounts)</span>
-          </h3>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* JazzCash */}
-            <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200">
-              <div className="text-xs font-bold text-amber-800 uppercase">JazzCash</div>
-              <div className="text-lg font-black text-slate-900 font-mono mt-1 select-all">
-                0340-0072030
-              </div>
-              <div className="text-xs text-slate-600 mt-0.5">
-                عنوان: <strong>Naveed Bhatti</strong>
-              </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* JazzCash */}
+          <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200">
+            <div className="text-xs font-bold text-amber-800 uppercase">JazzCash</div>
+            <div className="text-lg font-black text-slate-900 font-mono mt-1 select-all">
+              0340-0072030
             </div>
-
-            {/* EasyPaisa */}
-            <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200">
-              <div className="text-xs font-bold text-emerald-800 uppercase">EasyPaisa</div>
-              <div className="text-lg font-black text-slate-900 font-mono mt-1 select-all">
-                0340-0072030
-              </div>
-              <div className="text-xs text-slate-600 mt-0.5">
-                عنوان: <strong>Naveed Bhatti</strong>
-              </div>
+            <div className="text-xs text-slate-600 mt-0.5">
+              عنوان: <strong>Naveed Bhatti</strong>
             </div>
+          </div>
 
-            {/* Bank Transfer */}
-            <div className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-200 sm:col-span-2">
-              <div className="text-xs font-bold text-indigo-800 uppercase">Bank Transfer (بینک اکاؤنٹ)</div>
-              <div className="text-sm font-bold text-slate-900 mt-1 select-all">
-                Bank Alfalah / Meezan Bank | A/C: 0123-1002345678
-              </div>
-              <div className="text-xs text-slate-600 mt-0.5">
-                Account Title: <strong>Nexeta Technologies / Naveed Bhatti</strong>
-              </div>
+          {/* EasyPaisa */}
+          <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200">
+            <div className="text-xs font-bold text-emerald-800 uppercase">EasyPaisa</div>
+            <div className="text-lg font-black text-slate-900 font-mono mt-1 select-all">
+              0340-0072030
+            </div>
+            <div className="text-xs text-slate-600 mt-0.5">
+              عنوان: <strong>Naveed Bhatti</strong>
+            </div>
+          </div>
+
+          {/* Bank Transfer */}
+          <div className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-200 sm:col-span-2">
+            <div className="text-xs font-bold text-indigo-800 uppercase">Bank Transfer (بینک اکاؤنٹ)</div>
+            <div className="text-sm font-bold text-slate-900 mt-1 select-all">
+              Bank Alfalah / Meezan Bank | A/C: 0123-1002345678
+            </div>
+            <div className="text-xs text-slate-600 mt-0.5">
+              Account Title: <strong>Nexeta Technologies / Naveed Bhatti</strong>
             </div>
           </div>
         </div>

@@ -11,6 +11,7 @@ export interface Pump {
   password_hash?: string;
   subscription_status: "active" | "trial" | "expired" | "paused";
   trial_ends_at: string;
+  monthly_price?: number | null;
   created_at: string;
 }
 

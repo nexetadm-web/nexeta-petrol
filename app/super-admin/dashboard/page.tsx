@@ -24,7 +24,8 @@ import {
   MapPin,
   Trash2,
   Pause,
-  Play
+  Play,
+  Edit3
 } from "lucide-react";
 import { formatPKDate } from "@/lib/formatters";
 
@@ -38,6 +39,7 @@ interface PumpItem {
   cnic: string;
   subscription_status: string;
   trial_ends_at: string;
+  monthly_price?: number;
   created_at: string;
 }
 
@@ -60,6 +62,11 @@ export default function SuperAdminDashboardPage() {
   const [actionLoadingId, setActionLoadingId] = useState<number | null>(null);
   const [pumpToDelete, setPumpToDelete] = useState<PumpItem | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Custom Monthly Price Editing State
+  const [editingPricePump, setEditingPricePump] = useState<PumpItem | null>(null);
+  const [newPriceInput, setNewPriceInput] = useState<string>("3000");
+  const [priceSaveLoading, setPriceSaveLoading] = useState(false);
 
   const fetchPumps = async () => {
     setLoading(true);
@@ -124,6 +131,47 @@ export default function SuperAdminDashboardPage() {
       setPumpToDelete(null);
     } finally {
       setDeleteLoading(false);
+    }
+  };
+
+  const handleSavePrice = async () => {
+    if (!editingPricePump) return;
+    const priceVal = Number(newPriceInput);
+    if (isNaN(priceVal) || priceVal < 0) {
+      alert("درست رقم درج کریں۔");
+      return;
+    }
+
+    setPriceSaveLoading(true);
+    try {
+      const res = await fetch("/api/super-admin/pumps", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_price",
+          pumpId: editingPricePump.id,
+          pump_id: editingPricePump.id,
+          price: priceVal,
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        alert(data.error || "فیس اپ ڈیٹ نہ ہو سکی۔");
+        return;
+      }
+
+      // Update state locally for immediate response
+      setPumps((prev) =>
+        prev.map((p) =>
+          p.id === editingPricePump.id ? { ...p, monthly_price: priceVal } : p
+        )
+      );
+      setEditingPricePump(null);
+      await fetchPumps();
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setPriceSaveLoading(false);
     }
   };
 
@@ -253,7 +301,7 @@ export default function SuperAdminDashboardPage() {
               <div className="text-2xl font-black text-white font-mono">
                 Rs. {totalRevenue.toLocaleString()}
               </div>
-              <div className="text-[11px] text-indigo-200 mt-0.5">@ Rs. 3,000 / ماہانہ</div>
+              <div className="text-[11px] text-indigo-200 mt-0.5">مجموعی آمدن (Customized MRR)</div>
             </div>
           </div>
         </div>
@@ -264,7 +312,7 @@ export default function SuperAdminDashboardPage() {
             <div>
               <h2 className="text-xl font-bold text-white">تمام پٹرول پمپس کی فہرست (All Pumps / Agencies)</h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                ہر پمپ کے لیے PAUSE اور DELETE بٹن دستیاب ہیں۔ صرف PAUSE کرنے پر لاگ ان بند ہوگا۔
+                ہر پمپ کی الگ ماہانہ فیس مقرر کریں، لاگ ان PAUSE کریں یا پمپ DELETE کریں۔
               </p>
             </div>
 
@@ -283,13 +331,14 @@ export default function SuperAdminDashboardPage() {
 
           {/* Table */}
           <div className="overflow-x-auto mt-4">
-            <table className="w-full text-left text-xs min-w-[900px]">
+            <table className="w-full text-left text-xs min-w-[980px]">
               <thead className="text-[11px] uppercase tracking-wider text-slate-400 bg-slate-950/60 border-b border-slate-800">
                 <tr>
                   <th className="py-3 px-4 font-bold">ID & نام پٹرول پمپ</th>
                   <th className="py-3 px-4 font-bold">مالک و رابطہ</th>
                   <th className="py-3 px-4 font-bold">شہر</th>
                   <th className="py-3 px-4 font-bold">اسٹیٹس</th>
+                  <th className="py-3 px-4 font-bold text-center">ماہانہ فیس (Mahana Price)</th>
                   <th className="py-3 px-4 font-bold">ٹرائل / آخری تاریخ</th>
                   <th className="py-3 px-4 font-bold text-right">انتظامی اختیارات (Actions)</th>
                 </tr>
@@ -297,7 +346,7 @@ export default function SuperAdminDashboardPage() {
               <tbody className="divide-y divide-slate-800 text-slate-300">
                 {filteredPumps.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-slate-500">
+                    <td colSpan={7} className="py-8 text-center text-slate-500">
                       {loading ? "لوڈ ہو رہا ہے..." : "کوئی پٹرول پمپ نہیں ملا۔"}
                     </td>
                   </tr>
@@ -308,6 +357,7 @@ export default function SuperAdminDashboardPage() {
                     const isExpired = pump.subscription_status === "expired";
                     const isTrial = pump.subscription_status === "trial";
                     const isActive = pump.subscription_status === "active";
+                    const pumpPrice = pump.monthly_price ?? 3000;
 
                     return (
                       <tr key={pump.id} className="hover:bg-slate-800/40 transition-colors">
@@ -356,6 +406,26 @@ export default function SuperAdminDashboardPage() {
                               Expired (پلان ختم)
                             </span>
                           )}
+                        </td>
+
+                        {/* Column: Mahana Price (Customized per pump) */}
+                        <td className="py-3 px-4 text-center">
+                          <div className="inline-flex items-center gap-2 bg-slate-950/80 px-2.5 py-1.5 rounded-xl border border-slate-800">
+                            <span className="font-mono font-black text-amber-300 text-xs">
+                              Rs. {pumpPrice.toLocaleString()}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingPricePump(pump);
+                                setNewPriceInput(String(pumpPrice));
+                              }}
+                              className="p-1 rounded-md bg-indigo-600/30 hover:bg-indigo-600 text-indigo-300 hover:text-white transition-all shadow-xs"
+                              title="Edit Monthly Price / فیس تبدیل کریں"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </td>
 
                         {/* Date */}
@@ -445,6 +515,103 @@ export default function SuperAdminDashboardPage() {
           </div>
         </div>
       </main>
+
+      {/* Edit Price Popup Modal */}
+      {editingPricePump && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl text-slate-100">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-indigo-500/20 text-indigo-400 rounded-xl">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">ماہانہ فیس مقرر کریں (Edit Price)</h3>
+                  <p className="text-xs text-slate-400">
+                    {editingPricePump.pump_name} • #{editingPricePump.id} ({editingPricePump.city || "Pakistan"})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingPricePump(null)}
+                className="text-slate-400 hover:text-white text-base p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="my-5 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                  ماہانہ فیس (روپے میں - PKR)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">
+                    Rs.
+                  </span>
+                  <input
+                    type="number"
+                    value={newPriceInput}
+                    onChange={(e) => setNewPriceInput(e.target.value)}
+                    className="w-full pl-12 pr-4 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white font-mono text-base font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="e.g. 5000"
+                    autoFocus
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  یہ قیمت صرف سپر ایڈمن کو نظر آئے گی۔ پمپ مالک کو کہیں دکھائی نہیں دے گی۔
+                </p>
+              </div>
+
+              {/* Quick Preset Buttons */}
+              <div>
+                <div className="text-[11px] text-slate-400 mb-1.5">فوری منتخب کریں (Quick Presets):</div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {[2500, 3000, 4000, 5000, 6000, 8000, 10000].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setNewPriceInput(String(preset))}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-colors ${
+                        newPriceInput === String(preset)
+                          ? "bg-indigo-600 text-white shadow-xs"
+                          : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                      }`}
+                    >
+                      Rs. {preset.toLocaleString()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setEditingPricePump(null)}
+                disabled={priceSaveLoading}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs sm:text-sm font-bold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSavePrice}
+                disabled={priceSaveLoading}
+                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-indigo-600/30 transition-all flex items-center gap-2 disabled:opacity-50"
+              >
+                {priceSaveLoading ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4" />
+                )}
+                <span>Save Nayi Price</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Popup Modal */}
       {pumpToDelete && (
