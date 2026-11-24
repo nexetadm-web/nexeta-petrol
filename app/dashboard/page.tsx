@@ -186,8 +186,8 @@ export default function StationDashboard() {
               <span>{city} Station</span>
             </span>
           </div>
-          <p className="text-xs sm:text-sm text-emerald-100/90 mt-1.5 font-medium">
-            پٹرول پمپ لائیو مانیٹرنگ اور خودکار حساب کتاب • مالک: <strong>{ownerName}</strong>
+          <p className="text-xs sm:text-sm text-[#FACC15] mt-1.5 font-medium">
+            پٹرول پمپ لائیو مانیٹرنگ اور خودکار حساب کتاب • مالک: <strong className="text-[#FDE047] font-bold">{ownerName}</strong>
           </p>
         </div>
 
@@ -195,9 +195,9 @@ export default function StationDashboard() {
           <button
             onClick={fetchDashboardData}
             disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-800/80 hover:bg-emerald-700 text-white text-xs font-bold border border-emerald-400/30 shadow-md hover:shadow-emerald-900/30 transition-all active:scale-95 disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#FACC15] hover:bg-[#FDE047] text-[#064E3B] text-xs font-black border border-[#FACC15] shadow-md hover:shadow-amber-900/20 transition-all active:scale-95 disabled:opacity-50"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`w-4 h-4 text-[#064E3B] ${loading ? "animate-spin" : ""}`} />
             <span>ریفریش (Refresh)</span>
           </button>
         </div>
