@@ -21,7 +21,8 @@ import { formatLitres } from "@/lib/formatters";
 export default function PumpAlertSettingsPage() {
   const params = useParams();
   const router = useRouter();
-  const [actualPumpId, setActualPumpId] = useState<string>((params?.pumpId as string) || "1");
+  const pumpId = (params?.pumpId as string) || "1";
+  const [actualPumpId, setActualPumpId] = useState<string>(pumpId);
 
   const [pumpName, setPumpName] = useState<string>("Rex Petroleum");
   const [lowStockAlert, setLowStockAlert] = useState<boolean>(true);
