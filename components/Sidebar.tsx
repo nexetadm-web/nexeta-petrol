@@ -189,6 +189,7 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [userPumpId, setUserPumpId] = useState<number | null>(null);
 
   useEffect(() => {
     // Ultra-Fast Route Pre-fetching for sub-millisecond transitions
@@ -201,6 +202,9 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
     fetch("/api/auth/me")
       .then((res) => res.json())
       .then((data) => {
+        if (data?.session?.pumpId) {
+          setUserPumpId(data.session.pumpId);
+        }
         if (data?.isSuperAdmin || data?.session?.isSuperAdmin || data?.session?.role === "super_admin") {
           setIsSuperAdmin(true);
         }
@@ -268,12 +272,13 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
 
             {NAV_ITEMS.map((item) => {
               const Icon = item.icon;
-              const isActive = pathname === item.href;
+              const itemHref = item.name === "WhatsApp Alerts" && userPumpId ? `/dashboard/pump/${userPumpId}/settings/alerts` : item.href;
+              const isActive = pathname === itemHref || pathname === item.href || (item.name === "WhatsApp Alerts" && pathname.includes("/settings/alerts"));
 
               return (
                 <Link
-                  key={item.href}
-                  href={item.href}
+                  key={item.name}
+                  href={itemHref}
                   onClick={onClose}
                   className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-150 group relative ${
                     isActive

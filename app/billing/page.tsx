@@ -156,10 +156,10 @@ export default function BillingPage() {
           <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200">
             <div className="text-xs font-bold text-amber-800 uppercase">JazzCash</div>
             <div className="text-lg font-black text-slate-900 font-mono mt-1 select-all">
-              0340-0072030
+              03027694161
             </div>
             <div className="text-xs text-slate-600 mt-0.5">
-              عنوان: <strong>Naveed Bhatti</strong>
+              عنوان: <strong>Muhammad Naveed</strong>
             </div>
           </div>
 
@@ -167,10 +167,10 @@ export default function BillingPage() {
           <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200">
             <div className="text-xs font-bold text-emerald-800 uppercase">EasyPaisa</div>
             <div className="text-lg font-black text-slate-900 font-mono mt-1 select-all">
-              0340-0072030
+              03400072030
             </div>
             <div className="text-xs text-slate-600 mt-0.5">
-              عنوان: <strong>Naveed Bhatti</strong>
+              عنوان: <strong>Muhammad Naveed</strong>
             </div>
           </div>
 
@@ -178,10 +178,10 @@ export default function BillingPage() {
           <div className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-200 sm:col-span-2">
             <div className="text-xs font-bold text-indigo-800 uppercase">Bank Transfer (بینک اکاؤنٹ)</div>
             <div className="text-sm font-bold text-slate-900 mt-1 select-all">
-              Bank Alfalah / Meezan Bank | A/C: 0123-1002345678
+              Meezan Bank | A/C: 12530105129853
             </div>
             <div className="text-xs text-slate-600 mt-0.5">
-              Account Title: <strong>Nexeta Technologies / Naveed Bhatti</strong>
+              Account Title: <strong>Muhammad Naveed</strong>
             </div>
           </div>
         </div>

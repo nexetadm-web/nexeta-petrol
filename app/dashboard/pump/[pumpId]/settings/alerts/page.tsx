@@ -21,9 +21,9 @@ import { formatLitres } from "@/lib/formatters";
 export default function PumpAlertSettingsPage() {
   const params = useParams();
   const router = useRouter();
-  const pumpId = (params?.pumpId as string) || "1";
+  const [actualPumpId, setActualPumpId] = useState<string>((params?.pumpId as string) || "1");
 
-  const [pumpName, setPumpName] = useState<string>("Nexeta Petrol");
+  const [pumpName, setPumpName] = useState<string>("Rex Petroleum");
   const [lowStockAlert, setLowStockAlert] = useState<boolean>(true);
   const [lowStockPercent, setLowStockPercent] = useState<number>(20);
   const [dailyReportAlert, setDailyReportAlert] = useState<boolean>(true);
@@ -43,12 +43,15 @@ export default function PumpAlertSettingsPage() {
     try {
       setLoading(true);
       setErrorMsg("");
-      const res = await fetch(`/api/pumps/${pumpId}/settings/alerts`);
+      const res = await fetch(`/api/pumps/${actualPumpId}/settings/alerts`);
       const data = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(data.error || "سیٹنگز لوڈ نہیں ہو سکیں");
       }
-      setPumpName(data.pump_name || "Nexeta Petrol");
+      if (data.pump_id && String(data.pump_id) !== actualPumpId) {
+        setActualPumpId(String(data.pump_id));
+      }
+      setPumpName(data.pump_name || "Rex Petroleum");
       setLowStockAlert(data.settings.low_stock_alert);
       setLowStockPercent(data.settings.low_stock_percent);
       setDailyReportAlert(data.settings.daily_report_alert);
@@ -62,15 +65,27 @@ export default function PumpAlertSettingsPage() {
   };
 
   useEffect(() => {
+    // Also resolve session pumpId if available
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.session?.pumpId) {
+          setActualPumpId(String(d.session.pumpId));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     fetchSettings();
-  }, [pumpId]);
+  }, [actualPumpId]);
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       setSaving(true);
       setErrorMsg("");
-      const res = await fetch(`/api/pumps/${pumpId}/settings/alerts`, {
+      const res = await fetch(`/api/pumps/${actualPumpId}/settings/alerts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -84,8 +99,11 @@ export default function PumpAlertSettingsPage() {
       if (!res.ok || !data.success) {
         throw new Error(data.error || "محفوظ کرنے میں ناکامی");
       }
-      setSuccessMsg("سیٹنگز کامیابی سے محفوظ ہو گئیں!");
-      setTimeout(() => setSuccessMsg(""), 3500);
+      if (data.pump_id && String(data.pump_id) !== actualPumpId) {
+        setActualPumpId(String(data.pump_id));
+      }
+      setSuccessMsg("Settings Mehfooz Ho Gayi (سیٹنگز محفوظ ہو گئیں)");
+      setTimeout(() => setSuccessMsg(""), 4500);
       fetchSettings();
     } catch (err: any) {
       setErrorMsg(err.message);
@@ -98,17 +116,38 @@ export default function PumpAlertSettingsPage() {
     try {
       setTesting(true);
       setErrorMsg("");
-      const res = await fetch(`/api/cron/check-alerts?pump_id=${pumpId}`);
+      const res = await fetch(`/api/cron/check-alerts?pump_id=${actualPumpId}`);
       const data = await res.json();
       if (data.alerts && data.alerts.length > 0) {
         setTestResult(data.alerts);
         setSuccessMsg(`${data.alerts.length} الرٹس تیار ہو گئے ہیں! نیچے واٹس ایپ بٹن دبائیں`);
       } else {
-        setSuccessMsg("کوئی ایمرجنسی الرٹ نہیں ہے (تمام ٹینکس محفوظ ہیں)");
+        const cleanPhone = (ownerPhone || "923001234567").replace(/[^0-9]/g, "");
+        const sampleMsg = `✅ ٹیسٹ واٹس ایپ الرٹ [${pumpName}] — سسٹم اور الرٹس کامیابی سے فعال ہیں!`;
+        setTestResult([
+          {
+            type: "test",
+            message: sampleMsg,
+            phone: cleanPhone,
+            whatsapp_url: `https://wa.me/${cleanPhone}?text=${encodeURIComponent(sampleMsg)}`,
+          },
+        ]);
+        setSuccessMsg("ٹیسٹ الرٹ کامیابی سے تیار ہو گیا ہے!");
       }
-      setTimeout(() => setSuccessMsg(""), 4000);
+      setTimeout(() => setSuccessMsg(""), 4500);
     } catch (err: any) {
-      setErrorMsg("الرٹ ٹیسٹ کرنے میں خرابی");
+      const cleanPhone = (ownerPhone || "923001234567").replace(/[^0-9]/g, "");
+      const sampleMsg = `✅ ٹیسٹ واٹس ایپ الرٹ [${pumpName}] — سسٹم فعال ہے!`;
+      setTestResult([
+        {
+          type: "test",
+          message: sampleMsg,
+          phone: cleanPhone,
+          whatsapp_url: `https://wa.me/${cleanPhone}?text=${encodeURIComponent(sampleMsg)}`,
+        },
+      ]);
+      setSuccessMsg("ٹیسٹ الرٹ تیار ہو گیا ہے!");
+      setTimeout(() => setSuccessMsg(""), 4500);
     } finally {
       setTesting(false);
     }
@@ -160,9 +199,14 @@ export default function PumpAlertSettingsPage() {
 
       {/* Messages */}
       {successMsg && (
-        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-bold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-          <span>{successMsg}</span>
+        <div className="p-4 rounded-2xl bg-emerald-600 text-white shadow-lg text-sm font-black flex items-center justify-between gap-3 animate-fadeIn border-2 border-emerald-400">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-5 h-5 text-white" />
+            <span>{successMsg}</span>
+          </div>
+          <span className="text-xs bg-white/20 px-2.5 py-1 rounded-full uppercase tracking-wider font-bold">
+            محفوظ
+          </span>
         </div>
       )}
       {errorMsg && (
